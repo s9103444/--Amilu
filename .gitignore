@@ -1,0 +1,5 @@
+# Obsidian per-device UI state (causes false "changes" and merge noise)
+**/.obsidian/workspace.json
+**/.obsidian/workspace-mobile.json
+**/.obsidian/cache
+**/.trash/
