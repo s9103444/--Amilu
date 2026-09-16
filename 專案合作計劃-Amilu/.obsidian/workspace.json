@@ -11,28 +11,17 @@
             "id": "35f38244f84d8e8a",
             "type": "leaf",
             "state": {
-              "type": "excalidraw",
+              "type": "markdown",
               "state": {
-                "file": "Excalidraw/functionMap.md"
+                "file": "flowChart項目整理.md",
+                "mode": "source",
+                "source": false
               },
-              "icon": "excalidraw-icon",
-              "title": "functionMap"
-            }
-          },
-          {
-            "id": "d708160574b3f4b2",
-            "type": "leaf",
-            "state": {
-              "type": "excalidraw",
-              "state": {
-                "file": "Excalidraw/Drawing 2026-09-16 15.28.22.excalidraw.md"
-              },
-              "icon": "excalidraw-icon",
-              "title": "Drawing 2026-09-16 15.28.22.excalidraw"
+              "icon": "lucide-file",
+              "title": "flowChart項目整理"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -187,8 +176,8 @@
             "state": {
               "type": "excalidraw-sidepanel",
               "state": {},
-              "icon": "lucide-ghost",
-              "title": "excalidraw-sidepanel"
+              "icon": "excalidraw-icon",
+              "title": "Excalidraw Sidepanel"
             }
           }
         ],
@@ -212,12 +201,16 @@
       "obsidian-git:Open Git source control": false
     }
   },
-  "active": "d708160574b3f4b2",
+  "active": "35f38244f84d8e8a",
   "lastOpenFiles": [
     "Excalidraw/functionMap.md",
+    "Excalidraw/flowChart圖形放置區",
+    "flowChart項目整理.md",
+    "Excalidraw/functionMap.restored.md",
+    "生成樹狀圖的排法.md",
+    "amilu_討論總結.md",
     "Excalidraw/Drawing 2026-09-16 15.28.22.excalidraw.md",
     "Amilu 專案討論總結.md",
-    "Untitled.md",
     "conflict-files-obsidian-git.md",
     "委託註冊.md.tmp.41928.ed6125113aff",
     "委託註冊.md",
@@ -234,7 +227,6 @@
     "Untitled.base",
     "專案目標.md",
     "amilu_討論總結 1.md",
-    "amilu_討論總結.md",
     "Persona目標使用者.md"
   ]
 }
