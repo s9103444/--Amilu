@@ -1,0 +1,89 @@
+{
+  "type": "excalidrawlib",
+  "version": 2,
+  "source": "https://github.com/zsviczian/obsidian-excalidraw-plugin/releases/tag/2.27.3",
+  "libraryItems": [
+    {
+      "id": "item_1789650278362_2",
+      "status": "unpublished",
+      "elements": [
+        {
+          "id": "rect_405019559",
+          "type": "rectangle",
+          "x": 0,
+          "y": 0,
+          "width": 345,
+          "height": 161,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "#ffec99",
+          "fillStyle": "solid",
+          "strokeWidth": 2,
+          "strokeStyle": "dashed",
+          "roughness": 1,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 1795138441,
+          "version": 2,
+          "versionNonce": 866046436,
+          "isDeleted": false,
+          "boundElements": [
+            {
+              "id": "text_274705642",
+              "type": "text"
+            }
+          ],
+          "updated": 1789650990693,
+          "link": null,
+          "locked": false,
+          "index": "a0",
+          "hasTextLink": false
+        },
+        {
+          "id": "text_274705642",
+          "type": "text",
+          "x": 76.5,
+          "y": 43,
+          "width": 192,
+          "height": 75,
+          "angle": 0,
+          "strokeColor": "#1e1e1e",
+          "backgroundColor": "transparent",
+          "fillStyle": "solid",
+          "strokeWidth": 1,
+          "strokeStyle": "solid",
+          "roughness": 0,
+          "opacity": 100,
+          "groupIds": [],
+          "frameId": null,
+          "roundness": null,
+          "seed": 410628258,
+          "version": 2,
+          "versionNonce": 2010820188,
+          "isDeleted": false,
+          "boundElements": [],
+          "updated": 1789650990693,
+          "link": null,
+          "locked": false,
+          "text": "備註／待確認\n(黃色框)",
+          "fontSize": 30,
+          "fontFamily": 2,
+          "textAlign": "center",
+          "verticalAlign": "middle",
+          "baseline": 60,
+          "containerId": "rect_405019559",
+          "originalText": "備註／待確認\n(黃色框)",
+          "lineHeight": 1.25,
+          "index": "a1",
+          "hasTextLink": false,
+          "rawText": "",
+          "autoResize": true,
+          "labelPosition": null
+        }
+      ],
+      "created": 1789650278362
+    }
+  ]
+}
