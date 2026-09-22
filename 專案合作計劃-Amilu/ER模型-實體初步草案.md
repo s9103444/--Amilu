@@ -7,6 +7,8 @@
 
 > **正規化檢查（1NF／2NF／3NF）**：逐一檢查後修正了 2 個文件沒同步更新的錯誤——① Order 的「各分段 deadline」跟 OrderStage.deadline 重複（1NF 重複群組殘留，已從 Order 移除）；② Tag／WorkCategory／WorkStyle 缺少「文字唯一」的完整性限制（已補上 UNIQUE 說明，是 Tag 共用字典設計成立的前提）。另外確認了 3 個刻意保留的冗餘設計：Order.creator_id（技術上可從 item_id 推導，為查詢方便保留）、非即時聊天室訊息圖片維持單張、User 不存 identity_status（改用「是否存在 CreatorProfile」判斷）。**另外，Payment 的 6% 抽成計算欄位已經整個拿掉——這是使用者主動提出、確認要從這次的 demo 範圍拿掉的決定，不是正規化檢查發現的問題，也不是我建議砍掉的**；`amilu_討論總結.md` 裡對應的品牌規格速查與 Part 3.2 描述已同步更新（見該文件修改紀錄 2026/9/21）。
 
+> **2026/9/22 更新**：跟著 `amilu_討論總結.md` 同日的修改紀錄，這份草案同步做了三處結構調整——①**User 的 PK 從 `email` 改成使用者自訂的 `id`**，全文所有指向 User 的 FK 統一從 `*_email` 改名 `*_id`，`email` 降級為一般唯一屬性、新增 `nickname` 欄位；②**拿掉「風格 By Style」母類型**，`WorkStyle` 查找表移除，原 10 個項目改列為系統建議的常見 `Tag`；③**母標籤從多對多＋建議必填，改成 Work／CommissionItem 上的直接單一 FK 欄位（`category_id`／`purpose_id`），且兩者皆非必填**，`WorkCategory` 改名為共用的 `Category`，新增共用的 `Purpose` 查找表，`Work_Category`／`Work_Style` 兩張中介表移除；④**CommissionItem 現在也套用同一套分類規則**（原本只有 Work 有）。
+
 ---
 
 ## 一、盤點到的實體清單
@@ -14,30 +16,33 @@
 ### 1. User（帳號）
 
 - 對應：模組一 註冊／登入流程、手機驗證流程。
-- 候選 PK：`email`（flowchart 明確標註「email（當主鍵，不得重複）」）。
-- 主要欄位：密碼 hash、使用者名稱（可重複）、是否已完成手機驗證、手機號碼。
+- 候選 PK：`id`（2026/9/22 更新：使用者自訂、全站唯一，**取代原本以 `email` 作 PK 的設計**）。
+- 主要欄位：`email`（唯一，但**不再是 PK**，用於登入／通知等用途）、`nickname` 暱稱（可重複、可事後修改）、密碼 hash、是否已完成手機驗證、手機號碼。
+- 備註：帳密註冊與第三方快捷登入（如 Google）都必須收集 `id`＋`nickname`——第三方登入 OAuth 授權成功後，需多一個補填步驟讓使用者設定這兩個欄位才算完成註冊，確保兩種註冊路徑的帳號結構一致。
 - 備註：**已確認**不存「身份狀態（是否為創作者）」這個欄位——是不是創作者由「是否存在對應的 CreatorProfile」（見第 2 項）判斷即可，跟先前 Amilu 燈狀態「不存衍生欄位、避免跟來源資料不同步」是同一個原則。
+- **命名影響**：全文件所有指向 User 的 FK 欄位，原本命名為 `*_email`，這次一併改為 `*_id`（例如 `user_email`→`user_id`、`commissioner_email`→`commissioner_id`），見下方各實體對應段落。
 
 ### 2. CreatorProfile（創作者接案設定 / 創作者身份資料）
 
 - 對應：模組三 開通創作者商店流程、Amilu 燈狀態邏輯。
-- 候選 PK：`creator_id`；候選 FK：`user_email` → User.email（1 對 1，一個帳號最多一份創作者身份）。
+- 候選 PK：`creator_id`；候選 FK：`user_id` → User.id（1 對 1，一個帳號最多一份創作者身份）。
 - 主要欄位：收款戶頭、委託規範、授權範圍（是否可商用）、訂金%（30% / 50% / 無需先支付，三選一）、分段方案偏好（單段／3段／5段）、Amilu接案狀態（開放／暫停）、是否已通過創作者商店開通申請（開通條件：可委託項目至少 1 筆）。
 - 備註：外部顯示的「開放中」是由「手動開放」＋「可委託項目數 ≥ 1」＋「已開通商店」三條件同時成立才顯示，這是「衍生欄位／查詢邏輯」，不建議存成獨立狀態欄位，避免跟來源資料不同步。找一下驗證用的API
 
 ### 3. Work（作品集 / 一般圖文）
 
 - 對應：模組三 創作者作品上架流程；不需開通創作者商店也能發。
-- 候選 PK：`work_id`；候選 FK：`user_email` → User.email（因為作品集不要求已開通創作者商店）。
-- 主要欄位：文字內容、作品類型分類（By Type）、風格分類（By Style）。
-- 備註：**已確認**建立 `WorkCategory`／`WorkStyle` 查找表（見第 15、16 項），Work 與兩張查找表都採多對多關聯（見第 17、18 項的中介表），不用 enum 欄位；一件作品最多能掛幾個分類目前沒有文件依據，維持開放、交給應用層規則決定，不影響這裡的表結構。
+- 候選 PK：`work_id`；候選 FK：`user_id` → User.id（因為作品集不要求已開通創作者商店）。
+- 主要欄位：文字內容、`category_id`（FK → Category，nullable）、`purpose_id`（FK → Purpose，nullable）。
+- **2026/9/22 更新（取代原本的設計）**：原本規劃 `WorkCategory`／`WorkStyle` 查找表＋多對多中介表，這次改成：①拿掉「風格 By Style」母類型（原10項改列為系統建議的常見自訂標籤，不再結構化）；②作品類型／作品用途改成 Work 上的**直接單一 FK 欄位**（`category_id`／`purpose_id`），因為業務規則是「同一軸只能選一個」，用多對多中介表反而要在應用層額外限制「每個 work 在同一張中介表只能有一列」，不如直接用單一 FK 表達單選語意；③兩者皆**非必填**（nullable），一件作品可以完全不掛母標籤。原本的第 17、18 項（Work_Category、Work_Style 中介表）因此移除，`WorkCategory`／`WorkStyle` 也改名為不掛 `Work` 字首的共用查找表 `Category`／`Purpose`（因為 CommissionItem 現在也要用同一套，見第 4 項與第 15 項）。
 - 圖片欄位已拆出，見第 11 項 WorkImage。
 
 ### 4. CommissionItem（可委託項目）
 
 - 對應：模組三 開通創作者商店流程 Step3、創作者作品上架流程「可委託項目」路徑。
 - 候選 PK：`item_id`（flowchart 內有明確標註「可委託項目ID」欄位）；候選 FK：`creator_id` → CreatorProfile。
-- 主要欄位：委託標題、說明、價格（或價格區間）、建立時間戳 `created_at`。
+- 主要欄位：委託標題、說明、價格（或價格區間）、建立時間戳 `created_at`、`category_id`（FK → Category，nullable）、`purpose_id`（FK → Purpose，nullable）。
+- **2026/9/22 新增**：可委託項目的分類/標籤規則改成與 Work 完全比照——作品類型／作品用途各限選一個、皆非必填，可另外掛不限數量的自訂標籤（見第 5 項 Tag）。
 - 備註：**已確認**「是否可商用」沿用 CreatorProfile 的授權範圍設定，不在 CommissionItem 存獨立欄位——flowchart 備註「若該可委託項目未開放商用（接案設定—授權範圍）」字面上就是引用 CreatorProfile 的設定。
 - 備註：開通創作者商店的硬性條件是「可委託項目不可為 0 筆」，這條規則之後可以用「查詢 CommissionItem 是否至少 1 筆」實作，不需要另外存布林值。
 - 備註：委託商店燈箱左側「依序排列作者已申請的可委託項目圖片」，項目彼此之間的排列順序採 `ORDER BY created_at`（建立時間），不另外加排序欄位。
@@ -45,16 +50,17 @@
 
 ### 5. Tag（自訂標籤）
 
-- 對應：模組三，Work／CommissionItem 都可以掛自訂標籤。
+- 對應：模組三，Work／CommissionItem 都可以掛自訂標籤，且**非必填**（可完全不掛）。
 - 候選 PK：`tag_id`。
-- **已確認：全站共用字典**——同一段文字全站只對應一個 `tag_id`，不綁 owner 做存取限制，任何人都可以掛用既有標籤或新增新標籤；可選擇保留 `created_by_email`（FK → User.email）欄位供稽核/防濫用參考，但不作為存取控制用途。決策原因：需求是「用標籤找到其他人的作品」這種跨創作者篩選效果，若各自維護獨立字典，篩選時就得改成文字模糊比對才能達成同樣效果，反而會製造大小寫/同義字雜訊。
+- **已確認：全站共用字典**——同一段文字全站只對應一個 `tag_id`，不綁 owner 做存取限制，任何人都可以掛用既有標籤或新增新標籤；可選擇保留 `created_by_id`（FK → User.id）欄位供稽核/防濫用參考，但不作為存取控制用途。決策原因：需求是「用標籤找到其他人的作品」這種跨創作者篩選效果，若各自維護獨立字典，篩選時就得改成文字模糊比對才能達成同樣效果，反而會製造大小寫/同義字雜訊。
 - 備註：**已確認**標籤文字欄位需加 UNIQUE 限制——這是「全站共用字典」設計成立的前提，沒有這個限制就沒有東西阻止兩筆不同 `tag_id` 存了同樣的文字，等於共用字典名存實亡。
+- **2026/9/22 更新**：這個唯一命名空間現在**跨 `Tag`／`Category`／`Purpose` 三張表**共用——自訂標籤如果打的文字剛好跟某個 `Category` 或 `Purpose` 既有項目相同，設計原則上應視為同一個概念、不重複建立成一筆獨立的 `Tag`。實際 UI／應用層要怎麼判斷並導向對應欄位（例如打字時比對三張表做自動完成、或送出時後端統一比對），屬於實作細節，這份草案先記下設計原則，之後再收斂。原本「風格 By Style」10 個項目已改列為系統建議的常見 `Tag`（不再是獨立查找表），所以風格類詞彙本來就直接進 `Tag`，不涉及這個跨表比對問題。
 - 關聯：Work 與 Tag 為多對多，CommissionItem 與 Tag 也是多對多，實作方式見第 13、14 項 Work_Tag、CommissionItem_Tag 兩張中介表。
 
 ### 6. Order（委託案件 / 契約）
 
 - 對應：模組四 委託申請至契約成立完整狀態流（核心狀態機）、委託申請引導式表單。
-- 候選 PK：`order_id`；候選 FK：`commissioner_email` → User.email（甲方／委託人）、`creator_id` → CreatorProfile（乙方／創作者）、`item_id` → CommissionItem（本次委託對應的可委託項目）。
+- 候選 PK：`order_id`；候選 FK：`commissioner_id` → User.id（甲方／委託人）、`creator_id` → CreatorProfile（乙方／創作者）、`item_id` → CommissionItem（本次委託對應的可委託項目）。
 - 備註：`creator_id` 技術上可以從 `item_id → CommissionItem.creator_id` 推導出來，嚴格來說是傳遞相依（3NF 角度算冗餘）；**已確認保留**這個冗餘 FK，理由是方便查詢、省一次 join，這是電商類 schema 常見的實務做法，不是設計疏漏。
 - 主要欄位（契約快照，成立後鎖定不可改）：
   - 表單填寫內容：畫布方向、自訂尺寸、年齡分級（全年齡／R-18）、規格說明（自由文字）、授權層級（個人／商業）、甲方輸入預算、預期交件日。參考圖片已拆出，見第 19 項 `OrderReferenceImage`。
@@ -63,7 +69,7 @@
   - 狀態欄位：需求填寫中／待創作者確認／契約成立／第 N 階段製作中／已交付待確認／已完成／已取消（委託人送出前主動取消）／終止合作（雙輸或已撥款後結算）／惡意棄單（乙方或甲方）。
   - 契約同意（取代原本獨立的 `ConsentLog` 實體）：`commissioner_agreed_at`、`creator_agreed_at`——雙方各同意一次，是固定發生、不會累積的事實，直接併入 Order；完整舉證等級的契約內容快照/hash 欄位，demo 規模先不做，之後真的要做完整版再補。
   - 評價（取代原本獨立的 `Review` 實體）：`rating_for_creator`、`rating_for_commissioner`（整數）——雙方各評分一次，MVP 沒有文字評論欄位（「修改意見回饋框」本來就是延後功能），不填視為 0、判定為「無評論」，不計入評比樣本數，這條規則在應用層/查詢邏輯處理。
-  - 終止合作：`terminated_by_email`（FK → User.email，nullable）、`terminated_at`（nullable）——只記錄「誰、何時發起終止」；結算金額本身（甲方退多少、乙方拿多少）走第 8 項 `Payment` 的退款/撥款交易，不在 Order 重複存。
+  - 終止合作：`terminated_by_id`（FK → User.id，nullable）、`terminated_at`（nullable）——只記錄「誰、何時發起終止」；結算金額本身（甲方退多少、乙方拿多少）走第 8 項 `Payment` 的退款/撥款交易，不在 Order 重複存。
 - 備註：這是全案「分支最複雜」的實體，狀態欄位建議用一個 `status` enum，各階段細節拆到第 7 項 `OrderStage` 處理。
 
 ### 7. OrderStage（訂單分段紀錄）
@@ -86,7 +92,7 @@
 ### 9. Message（非即時聊天室）
 
 - 對應：模組四「非即時聊天室」——綁定單一 Order、非即時，是已經定案的 MVP 功能。
-- 候選 PK：`message_id`；候選 FK：`order_id` → Order、`sender_email` → User.email。
+- 候選 PK：`message_id`；候選 FK：`order_id` → Order、`sender_id` → User.id。
 - 主要欄位：留言內容、時間戳、圖片（**已確認**一則訊息最多 1 張，不需要拆 weak entity；如果之後要改成可多張，才需要比照 WorkImage 拆出獨立表）。
 - 備註：`amilu_討論總結.md` 明確寫「【砍】即時聊天室（改用模組四的非即時圖文留言區）」，這裡指的就是取代即時聊天室的「非即時聊天室」，全文統一用這個名詞，不再混用「合作區留言／留言區／圖文留言區」等說法。模組四 flowchart 另外畫的「議價聊天室」（委託送出後～創作者確認前，用來協商日期/金額的即時聊天室）是 2026/9/20 修改紀錄裡標注「尚未定案」的另一個機制，跟這裡的非即時聊天室是兩回事，目前不建表，未來若定案再另外處理。
 - 備註：聊天室可以圖加文，階段稿件的圖片已經由 `OrderStage`（第 7 項）在存，這裡不重複存圖片，單純當雙方溝通用的聊天室紀錄。
@@ -94,7 +100,7 @@
 ### 10. Notification（通知）
 
 - 對應：模組五 通知中心。
-- 候選 PK：`notification_id`；候選 FK：`user_email` → User.email、`order_id` → Order（nullable，系統公告類通知不綁定案件）。
+- 候選 PK：`notification_id`；候選 FK：`user_id` → User.id、`order_id` → Order（nullable，系統公告類通知不綁定案件）。
 - 主要欄位：分類（專案通知／系統公告／互動）、內容、是否已讀、時間戳、是否已透過 email 發送（逾時提醒、auto-confirm 結果這類要站內＋email 雙管道）。
 - 備註：**已確認**補上 `order_id`——「逾時提醒、auto-confirm 結果」這類專案通知本來就綁定特定案件，需要能從通知直接連回對應的 Order。
 
@@ -125,24 +131,20 @@
 ### 15. WorkCategory（作品類型查找表，新增）
 
 - 對應：Part 1.2「作品類型 By Type」固定清單（角色立繪、插畫、頭像／大頭貼……等 10 項）。
+- **2026/9/22 改名**：原本叫 `WorkCategory`，因為 CommissionItem 現在也要用同一套分類（見第 4 項），改名為不掛 `Work` 字首的共用查找表 `Category`。
 - 候選 PK：`category_id`。
 - 主要欄位：分類名稱（**已確認**需加 UNIQUE 限制，避免固定清單出現兩筆重複名稱的資料）。
-- 備註：固定清單改用查找表，方便未來調整清單內容而不用動 enum 定義，也支援 Work 一次掛多個分類（多對多，見第 17 項）。
+- 備註：固定清單改用查找表，方便未來調整清單內容而不用動 enum 定義。Work／CommissionItem 都用**直接單一 FK**（`category_id`，nullable）指向這張表，不是多對多——因為業務規則是「同一軸只能選一個、且非必填」，不需要中介表（原本第 17 項 `Work_Category` 中介表已移除）。
 
-### 16. WorkStyle（作品風格查找表，新增）
+### 16. Purpose（作品用途查找表，改名自 WorkStyle 的原編號位置，設計邏輯調整）
 
-- 對應：Part 1.2「風格 By Style」固定清單（二次元／動漫、寫實……等 10 項）。
-- 候選 PK：`style_id`。
-- 主要欄位：風格名稱（**已確認**需加 UNIQUE 限制，理由同 WorkCategory）。
-- 備註：設計邏輯同 WorkCategory。
+- 對應：Part 1.2「用途 By Purpose」固定清單（個人收藏、商業授權……等 10 項）。
+- **2026/9/22 更新**：原本第 16 項是 `WorkStyle`（對應「風格 By Style」），但「風格 By Style」母類型已移除（10 項改列為系統建議的常見 `Tag`，不再是結構化查找表）。這個編號位置改放**用途 By Purpose** 查找表，因為用途現在也是 Work／CommissionItem 共用的必要欄位。
+- 候選 PK：`purpose_id`。
+- 主要欄位：用途名稱（**已確認**需加 UNIQUE 限制，理由同 Category）。
+- 備註：設計邏輯同 Category——Work／CommissionItem 都用直接單一 FK（`purpose_id`，nullable）指向這張表，不用中介表。
 
-### 17. Work_Category（Work 與 WorkCategory 的多對多中介表，新增）
-
-- 候選 PK（複合鍵）：`work_id`（FK → Work）＋ `category_id`（FK → WorkCategory）。
-
-### 18. Work_Style（Work 與 WorkStyle 的多對多中介表，新增）
-
-- 候選 PK（複合鍵）：`work_id`（FK → Work）＋ `style_id`（FK → WorkStyle）。
+（原本第 17 項 `Work_Category`、第 18 項 `Work_Style` 兩張多對多中介表已移除：單選＋非必填的業務規則用 Work／CommissionItem 上的直接 FK 欄位表達即可，不需要中介表。）
 
 ### 19. OrderReferenceImage（委託申請參考圖片，弱實體，新增）
 
