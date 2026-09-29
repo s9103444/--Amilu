@@ -71,7 +71,7 @@
   - 分段方案、訂金%、修改次數（`revision_count_snapshot`）（唯讀複製自 CreatorProfile 當時的設定，鎖進快照，之後 CreatorProfile 若異動不影響已成立的 Order）。
   - 付款方式（全額／訂金）、工作起訖日期、委託報價金額（由創作者在確認時給出，**金額鎖定時機仍待定案**，見下方「三、待確認事項」第 1 點）。各分段 deadline **不**在 Order 存，只在第 7 項 `OrderStage` 存一份（原本這裡也列了「各分段 deadline」，是跟 OrderStage 重複的殘留欄位，已移除）。
   - `created_at`（2026/9/29 新增）：委託申請建立時間，約稿管理列表依此排序。
-  - `completed_at`（2026/9/29 新增）：正常完成的結案時間（最後階段人工確認或 auto-confirm）。
+  - `completed_at`（2026/9/29 新增）：正常完成的結案時間（最後階段人工確認、auto-confirm，或只付訂金者補款入帳）。
   - 補款金額不存欄位：後端即時計算＝`quote_amount` − Payment 已託管入款 `amount` 加總。
   - 狀態欄位：需求填寫中／待創作者確認／契約成立／第 N 階段製作中／已交付待確認／已完成／已取消（委託人送出前主動取消）／終止合作（雙輸或已撥款後結算）／惡意棄單（乙方或甲方）。
   - 契約同意（取代原本獨立的 `ConsentLog` 實體）：`commissioner_agreed_at`、`creator_agreed_at`——雙方各同意一次，是固定發生、不會累積的事實，直接併入 Order；完整舉證等級的契約內容快照/hash 欄位，demo 規模先不做，之後真的要做完整版再補。
@@ -109,7 +109,7 @@
 
 - 對應：模組五 通知中心。
 - 候選 PK：`notification_id`；候選 FK：`user_id` → User.id、`order_id` → Order（nullable，系統公告類通知不綁定案件）。
-- 主要欄位：分類（專案通知／系統公告／互動）、內容、是否已讀、時間戳、是否已透過 email 發送（逾時提醒、auto-confirm 結果這類要站內＋email 雙管道）。
+- 主要欄位：分類（專案通知／系統公告；2026/9/29 拿掉「互動」，聊天訊息改由通知中心「對話」頁籤直接讀 Message，且不做未讀）、內容、是否已讀、時間戳、是否已透過 email 發送（逾時提醒、auto-confirm 結果這類要站內＋email 雙管道）。
 - 備註：**已確認**補上 `order_id`——「逾時提醒、auto-confirm 結果」這類專案通知本來就綁定特定案件，需要能從通知直接連回對應的 Order。
 
 ### 11. WorkImage（作品集圖片，弱實體）
