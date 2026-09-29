@@ -20,6 +20,7 @@
 - 主要欄位：`email`（唯一，但**不再是 PK**，用於登入／通知等用途）、`nickname` 暱稱（可重複、可事後修改）、密碼 hash、是否已完成手機驗證、手機號碼。
 - **2026/9/29 新增**：`bio`（簡介，上限 150 字，於個人資料設定頁編輯）、`deleted_at`（刪除帳號時間）；`account_status` 新增「已刪除」。刪除帳號採**軟刪除**，不實際刪列，避免歷史 Order 指向不存在的帳號。
 - 備註：帳密註冊與第三方快捷登入（如 Google）都必須收集 `id`＋`nickname`——第三方登入 OAuth 授權成功後，需多一個補填步驟讓使用者設定這兩個欄位才算完成註冊，確保兩種註冊路徑的帳號結構一致。
+- 備註（2026/9/29）：Google 授權後、補填完成前**不建立 User 列**（此時還沒有 `id` 可當 PK）；中途關掉的人下次用 Google 登入時，系統查不到對應 email 的 User，就再導回補填頁，因此不需要額外的「是否完成註冊」欄位。補填頁另可選填大頭照（`avatar_url`）。
 - 備註：**已確認**不存「身份狀態（是否為創作者）」這個欄位——是不是創作者由 `CreatorProfile.store_approved` 判斷（2026/9/29 更新：原本用「是否存在 CreatorProfile」，但開通 Step2 填完就會先建立 CreatorProfile，此時尚未開通，所以改看 `store_approved`；手機驗證＋接案設定＋至少 1 筆委託項目都完成才為 true，無人工審核），跟先前 Amilu 燈狀態「不存衍生欄位、避免跟來源資料不同步」是同一個原則。
 - **命名影響**：全文件所有指向 User 的 FK 欄位，原本命名為 `*_email`，這次一併改為 `*_id`（例如 `user_email`→`user_id`、`commissioner_email`→`commissioner_id`），見下方各實體對應段落。
 
@@ -76,7 +77,7 @@
   - 狀態欄位：需求填寫中／待創作者確認／契約成立／第 N 階段製作中／已交付待確認／已完成／已取消（委託人送出前主動取消）／終止合作（雙輸或已撥款後結算）／惡意棄單（乙方或甲方）。
   - 契約同意（取代原本獨立的 `ConsentLog` 實體）：`commissioner_agreed_at`、`creator_agreed_at`——雙方各同意一次，是固定發生、不會累積的事實，直接併入 Order；完整舉證等級的契約內容快照/hash 欄位，demo 規模先不做，之後真的要做完整版再補。
   - 評價（取代原本獨立的 `Review` 實體）：`rating_for_creator`、`rating_for_commissioner`（整數）——雙方各評分一次，MVP 沒有文字評論欄位（「修改意見回饋框」本來就是延後功能），不填視為 0、判定為「無評論」，不計入評比樣本數，這條規則在應用層/查詢邏輯處理。
-  - 終止合作：`terminated_by_id`（FK → User.id，nullable）、`terminated_at`（nullable）——只記錄「誰、何時發起終止」；送出即生效，是甲方或乙方發起由 `terminated_by_id` 與 `commissioner_id` 比對判斷，不另設結案方式欄位；結算金額本身（甲方退多少、乙方拿多少）走第 8 項 `Payment` 的退款/撥款交易，不在 Order 重複存。
+  - 終止合作：`terminated_by_id`（FK → User.id，nullable）、`terminated_at`（nullable）——只記錄「誰、何時發起終止」；送出即生效，是甲方或乙方發起由 `terminated_by_id` 與 `commissioner_id` 比對判斷，不另設結案方式欄位；`terminated_by_id` 為空值但 `status`＝已終止，代表系統結算（例：只付訂金逾期未補款，以「最後階段未完成」結算）；結算金額本身（甲方退多少、乙方拿多少）走第 8 項 `Payment` 的退款/撥款交易，不在 Order 重複存。
 - 備註：這是全案「分支最複雜」的實體，狀態欄位建議用一個 `status` enum，各階段細節拆到第 7 項 `OrderStage` 處理。
 
 ### 7. OrderStage（訂單分段紀錄）
@@ -159,6 +160,13 @@
 - 對應：委託申請引導式表單「上傳參考圖片（可多張）」欄位。
 - 候選 PK（複合鍵）：`order_id`（FK → Order）＋ `seq_no`（設計邏輯同 WorkImage/CommissionItemImage）。
 - 主要欄位：`image_url`。
+
+### 20. Follow（追蹤關係，新增 2026/9/29）
+
+- 對應：模組二 創作者個人頁的 follow 按鈕與追蹤清單燈箱（followers／following 頁籤）。
+- 候選 PK（複合鍵）：`follower_id`（FK → User.id，追蹤者）＋ `following_id`（FK → User.id，被追蹤者）。
+- 主要欄位：`created_at`（追蹤時間）。
+- 設計說明：User 對 User 的多對多自我關聯，一組追蹤關係只存一列；followers／following 數字由本表即時計數，不在 User 存快取欄位。
 
 ---
 
