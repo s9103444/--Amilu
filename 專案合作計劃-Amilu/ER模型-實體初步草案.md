@@ -28,8 +28,9 @@
 
 - 對應：模組三 開通創作者商店流程、Amilu 燈狀態邏輯。
 - 候選 PK：`creator_id`；候選 FK：`user_id` → User.id（1 對 1，一個帳號最多一份創作者身份）。
-- 主要欄位：收款帳戶（`payout_bank_code` 銀行代碼、`payout_account_no` 帳號、`payout_account_name` 戶名）、訂金%（30% / 50% / 無需先支付，三選一）、分段方案偏好（單段／五點分段）、`revision_count` 修改次數、Amilu接案狀態（開放／暫停）、是否已通過創作者商店開通申請（開通條件：可委託項目至少 1 筆）。
+- 主要欄位：收款帳戶（`payout_bank_code` 銀行代碼、`payout_account_no` 帳號、`payout_account_name` 戶名）、訂金%（30% / 50% / 無需先支付，三選一）、`revision_count` 修改次數、Amilu接案狀態（開放／暫停）、是否已通過創作者商店開通申請（開通條件：可委託項目至少 1 筆）。
 - **2026/9/29 更新**：移除「授權範圍（是否可商用）」，改到 CommissionItem 各自設定（見第 4 項）；收款戶頭拆成三欄；新增修改次數；移除「委託規範」（`tos_rules`），ToS 改由平台統一提供。
+- **2026/10/1 更新**：移除 `stage_plan_pref`（分段方案），移到 CommissionItem 各自設定（見第 4 項）。
 - 備註：外部顯示的「開放中」是由「手動開放」＋「可委託項目數 ≥ 1」＋「已開通商店」三條件同時成立才顯示，這是「衍生欄位／查詢邏輯」，不建議存成獨立狀態欄位，避免跟來源資料不同步。找一下驗證用的API
 
 ### 3. Work（作品集 / 一般圖文）
@@ -48,6 +49,7 @@
 - 主要欄位：委託標題、說明、價格（或價格區間）、建立時間戳 `created_at`、`category_id`（FK → Category，nullable）、`purpose_id`（FK → Purpose，nullable）。
 - **2026/9/22 新增**：可委託項目的分類/標籤規則改成與 Work 完全比照——作品類型／作品用途各限選一個、皆非必填，可另外掛不限數量的自訂標籤（見第 5 項 Tag）。
 - **2026/9/29 更新（取代原本「沿用 CreatorProfile 授權範圍」的結論）**：新增 `commercial_allowed`（是否可商用，boolean），每個可委託項目各自設定；項目不開放商用時，委託申請的授權層級只能選「個人」。
+- **2026/10/1 新增**：`stage_plan_pref`（分段方案：單段／五點分段，必填），由 CreatorProfile 移過來，每個可委託項目各自設定；欄位名稱沿用原本的 `stage_plan_pref`。
 - 備註：開通創作者商店的硬性條件是「可委託項目不可為 0 筆」，這條規則之後可以用「查詢 CommissionItem 是否至少 1 筆」實作，不需要另外存布林值。
 - 備註：委託商店燈箱左側「依序排列作者已申請的可委託項目圖片」，項目彼此之間的排列順序採 `ORDER BY created_at`（建立時間），不另外加排序欄位。
 - 圖片欄位已拆出，見第 12 項 CommissionItemImage。
@@ -69,7 +71,8 @@
 - 備註：`creator_id` 技術上可以從 `item_id → CommissionItem.creator_id` 推導出來，嚴格來說是傳遞相依（3NF 角度算冗餘）；**已確認保留**這個冗餘 FK，理由是方便查詢、省一次 join，這是電商類 schema 常見的實務做法，不是設計疏漏。
 - 主要欄位（契約快照，成立後鎖定不可改）：
   - 表單填寫內容：畫布方向、自訂尺寸、年齡分級（全年齡／R-18）、規格說明（自由文字）、授權層級（個人／商業）、甲方輸入預算、預期交件日。參考圖片已拆出，見第 19 項 `OrderReferenceImage`。
-  - 分段方案、訂金%、修改次數（`revision_count_snapshot`）（唯讀複製自 CreatorProfile 當時的設定，鎖進快照，之後 CreatorProfile 若異動不影響已成立的 Order）。
+  - 訂金%、修改次數（`revision_count_snapshot`）（唯讀複製自 CreatorProfile 當時的設定，鎖進快照，之後 CreatorProfile 若異動不影響已成立的 Order）。
+  - 分段方案（`stage_plan_snapshot`，2026/10/1 更新）：改為複製自 `CommissionItem.stage_plan_pref`，而且在甲方**送出委託申請時**就鎖定（不是等契約成立），避免乙方在報價前修改項目分段、讓甲方申請時看到的條件被改掉。
   - 付款方式（全額／訂金）、工作起訖日期、委託報價金額（由創作者在確認時給出，**金額鎖定時機仍待定案**，見下方「三、待確認事項」第 1 點）。各分段 deadline **不**在 Order 存，只在第 7 項 `OrderStage` 存一份（原本這裡也列了「各分段 deadline」，是跟 OrderStage 重複的殘留欄位，已移除）。
   - `created_at`（2026/9/29 新增）：委託申請建立時間，約稿管理列表依此排序。
   - `completed_at`（2026/9/29 新增）：正常完成的結案時間（最後階段人工確認、auto-confirm，或只付訂金者補款入帳）。
