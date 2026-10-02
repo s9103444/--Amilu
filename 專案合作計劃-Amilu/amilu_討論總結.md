@@ -34,6 +34,8 @@
 ## 品牌規格速查
 
 - **色彩**：Primary `#ebe9e6`｜Secondary `#b7aea3` `#f5f7f6` `#232020`｜Accent 綠 `#78b260`／藍 `#80caea`／橘 `#eb5919`／粉 `#f0809f`／黃 `#ebbd00`
+- **灰階（2026/10/1 合併）**：主文字 `#232020`｜次要文字 `#959595`｜提示文字與邊框 `#c2c2c2`
+- **完整規格**：Figma `design spec` 頁（色彩 variable「Amilu｜色彩」、字級 variable「Amilu｜字級」、text style `Amilu/*`、grid style `Amilu/Grid/*`）；mockup 與 RWD 一律套用這些 style
 - **字體**：中文 源泉圓體丹（TC）｜英文 Poppins
 - **調性**：灰白黑極簡、零阻力瀏覽、圖片內容為優先
 - **核心願景**：在專業的節奏裡並肩而行
@@ -42,9 +44,9 @@
 
 # Part 1 · 設計基礎
 
-## 1.1 Figma Grid（暫定，未定案）
+## 1.1 Figma Grid（2026/10/1 定案）
 
-- **內容區**：max-width **1440px**、置中、12 欄
+- **桌機**（≥1024，設計基準寬 **1920**）：12 欄、gutter 24、margin 48
 - **平板**（768–1023）：8 欄、gutter 16、margin 32
 - **手機**（<768）：4 欄、gutter 16、margin 16
 - **作品牆**：以元件（component）實作，維持桌機 5 欄／平板 3 欄／手機 2 欄
@@ -455,3 +457,4 @@
 | 2026/9/29 | ui flow 對照總結補齊畫面與修正：①新增 Google 登入補填資料頁（ID／暱稱必填、大頭照選填，中途關掉下次登入再跳回）、付款逾期自動取消通知頁、手機驗證（第一次送出委託）、乙方最後階段等待委託人補款、甲方第一階段系統代為確認、約稿管理（已委託｜歷史）與（已接案｜進行中）、追蹤清單燈箱（followers／following）②「我要委託」防手滑改用瀏覽器 confirm③逾期未補款結案沿用「已終止」顯示，`terminated_by_id` 為空＝系統結算④首頁、作品燈箱、類型下拉選單拿掉「作品風格」；個人頁作品卡說明改為「作品類型、用途」⑤乙方討論牆「上傳進度」改名「上傳作品」並修正提示錯字；所有討論牆貼文加上張數提示與橫向拖拉指示⑥追蹤改為 MVP，ER 新增 `FOLLOW`（follower_id、following_id、created_at）⑦3.4 步驟 3 付款頁按鈕改為三顆 |
 | 2026/9/29 | 可委託項目燈箱與項目展開畫面：每個項目名稱旁補上「可商用／不可商用」標籤（讀 `COMMISSION_ITEM.commercial_allowed`） |
 | 2026/10/1 | 分段方案改為每個委託項目各自設定：①Figma 新增／編輯委託項目燈箱在「是否可商用」下方加「分段方案」（單段／五點分段，必填），底部警語改為「訂金比例與修改次數沿用接案設定」；接案設定與開通 Step2 的分段方案區塊隱藏，相關提示文案拿掉「分段方案」②ER `stage_plan_pref` 從 `CREATOR_PROFILE` 移到 `COMMISSION_ITEM`（沿用欄位名）③`ORDER.stage_plan_snapshot` 改在甲方**送出委託申請時**就從委託項目複製鎖定（其餘快照仍在契約成立時），避免乙方報價前改項目分段；FigJam 快照便利貼同步說明④同步 `functionMap`、`模組三-開通創作者商店流程`（分段方案方塊由 Step2 移到 Step3）、`模組四-委託申請引導式表單`（分段照委託項目、訂金照接案設定） |
+| 2026/10/1 | Design spec 定案：①Figma 新增 `design spec` 頁，排出色彩、字體、字級（11 級，桌機／平板／手機三種尺寸）與 Grid②Primary 定為 `#ebe9e6`（取代 Figma 舊 style 的 `#f0eeec`）；文字灰階由 6 個合併為 3 個（`#232020`／`#959595`／`#c2c2c2`）③1.1 Grid 由暫定改為定案：桌機設計基準寬改為 1920（12 欄、gutter 24、margin 48，沿用 mockup 現有設定），取代原 max-width 1440；平板、手機與作品牆欄數不變④建立色彩 variable、三個 mode 的字級 variable、text style `Amilu/*` 與 grid style；源泉圓體外掛無法載入，text style 暫用 Noto Sans TC，正式稿再換回 |
