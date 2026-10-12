@@ -2,7 +2,7 @@
 
 > 這份說明「FigJam 上的 ER 圖怎麼讀、有哪些表、表之間怎麼連、哪些值刻意不存」。
 > **欄位清單以 FigJam 為準**，這裡不重抄，避免兩邊各自維護。要查某張表的完整欄位，請直接開圖。
-> 訂單狀態怎麼變、各種倒數天數與金額公式，見 [order-lifecycle.md](order-lifecycle.md)（待建立）。
+> 訂單狀態怎麼變、各種倒數天數與金額公式，見 [order-lifecycle.md](order-lifecycle.md)。
 
 **ER 圖**：[FigJam｜ER Diagram - Amilu](https://www.figma.com/board/KNj96DaqlW6fQ4NuWFu52b/ER-Diagram---Amilu?node-id=0-1)
 
@@ -159,7 +159,7 @@ FigJam 上有四張標題為「備註」的便利貼，貼在對應的表旁邊�
 
 ### 4.4 ORDER 結案方式判斷（不另設欄位）
 
-- **已完成**：`status` ＝ 已完成，時間看 `completed_at`；最後階段的 `ORDER_STAGE.confirm_status` 可分出人工確認或 auto-confirm。
+- **已完成**：`status` ＝ 已完成，時間看 `completed_at`；最後階段的 `ORDER_STAGE.confirm_status` 一律是人工確認（過程沒有自動確認機制，見 order-lifecycle.md）。
 - **已終止**：`status` ＝ 已終止，發起方送出時寫入 `terminated_by_id`，與 `commissioner_id` 比對即知是甲方或乙方發起；第一階段 `ORDER_STAGE.paid` 決定是雙輸或已撥款結算。
 - **補款金額**：後端即時計算 ＝ `quote_amount` − PAYMENT 已託管入款的 `amount` 加總，不存欄位。
 
@@ -204,7 +204,7 @@ FigJam 上有四張標題為「備註」的便利貼，貼在對應的表旁邊�
 
 1. **「關聯通知」那條線沒有接到 NOTIFICATION**：ORDER 到 NOTIFICATION 的連接線，終點掛在畫布上而不是 NOTIFICATION 這張表。`NOTIFICATION.order_id` 欄位本身是對的，只是線要重接。
 2. **有兩個 FK 沒有畫線**：`TAG.created_by_id` 指向 USER、`ORDER.terminated_by_id` 指向 USER，圖上都沒有對應的關聯線。
-3. **惡意棄單沒有對應的 `ORDER.status` 值**：`ORDER.status` 只列六種（待乙方報價／待甲方付款／製作中／已完成／已取消／已終止），但 PRD 的 MVP 範圍包含惡意棄單，`USER.lock_reason` 也有「惡意棄單」。棄單案件的 `status` 是歸在「已終止」還是另有值，圖上沒說。
+3. **已解決**：惡意棄單機制已經拿掉（2026/10/12，見 `order-lifecycle.md`、changelog），改用統一的「最終截稿日 +30 天系統強制結算」，結算一律走「已終止」，不需要新增 `status` 值，原本的問題不存在了。但 FigJam 上 `USER.lock_reason` 的「惡意棄單」這個列舉值已經沒有對應情境，需要回頭去 FigJam 清掉。
 4. **補款期限天數與等待期可能被混在一起**：`ORDER.topup_due_at` 的說明寫「最後階段確認前，起算 7 天」，但規則文件把「補款期限」與「補款期限到期後的 7 天等待期」分開寫，且沒有給補款期限的天數。這個 7 天是期限還是等待期，需要確認。
 5. **ORDER 同時有 `terminated_by_id` 與 `cancel_reason`**：`cancel_reason` 的說明是「取消／終止原因」，同一欄位共用兩種情境。若終止原因與取消原因之後要分開查詢，需要拆欄位。
 
