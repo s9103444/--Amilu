@@ -141,8 +141,7 @@ FigJam 上有四張標題為「備註」的便利貼，貼在對應的表旁邊�
 
 ### 4.1 ORDER 契約快照欄位
 
-- `item_title_snapshot`、`deposit_percent_snapshot`、`revision_count_snapshot` 在**甲方確認報價（契約成立）當下**，從可委託項目與接案設定複製一份存進 ORDER。
-- 例外：`stage_plan_snapshot` 在**甲方送出委託申請時**就從 `COMMISSION_ITEM.stage_plan_pref` 複製鎖定，避免乙方在報價前改了項目分段，讓甲方申請時看到的條件被改掉。
+- `item_title_snapshot`、`deposit_percent_snapshot`、`revision_count_snapshot`、`stage_plan_snapshot` 都在**甲方送出委託申請時**就從可委託項目與接案設定複製一份存進 ORDER（2026/10/15 定案），避免乙方在報價前改了設定，讓甲方申請時看到的條件被改掉。
 - 原因：創作者之後修改或刪除可委託項目、調整接案設定時，已成立的案件仍要顯示並依照當下的內容，不會跟著變動。
 
 ### 4.2 ORDER_STAGE.stage_no 編碼
@@ -205,7 +204,7 @@ FigJam 上有四張標題為「備註」的便利貼，貼在對應的表旁邊�
 1. **「關聯通知」那條線沒有接到 NOTIFICATION**：ORDER 到 NOTIFICATION 的連接線，終點掛在畫布上而不是 NOTIFICATION 這張表。`NOTIFICATION.order_id` 欄位本身是對的，只是線要重接。
 2. **有兩個 FK 沒有畫線**：`TAG.created_by_id` 指向 USER、`ORDER.terminated_by_id` 指向 USER，圖上都沒有對應的關聯線。
 3. **已解決**：惡意棄單機制已經拿掉（2026/10/12，見 `order-lifecycle.md`、changelog），改用統一的「最終截稿日 +30 天系統強制結算」，結算一律走「已終止」，不需要新增 `status` 值，原本的問題不存在了。但 FigJam 上 `USER.lock_reason` 的「惡意棄單」這個列舉值已經沒有對應情境，需要回頭去 FigJam 清掉。
-4. **補款期限天數與等待期可能被混在一起**：`ORDER.topup_due_at` 的說明寫「最後階段確認前，起算 7 天」，但規則文件把「補款期限」與「補款期限到期後的 7 天等待期」分開寫，且沒有給補款期限的天數。這個 7 天是期限還是等待期，需要確認。
+4. **已解決**（2026/10/15）：補款期限定為 7 天（自創作者上傳最後階段起算），到期後另有 7 天等待期，兩者是獨立的兩段，`ORDER.topup_due_at` 記的是補款期限到期時間。
 5. **ORDER 同時有 `terminated_by_id` 與 `cancel_reason`**：`cancel_reason` 的說明是「取消／終止原因」，同一欄位共用兩種情境。若終止原因與取消原因之後要分開查詢，需要拆欄位。
 
 另外 `延伸檔案/ER模型-實體初步草案.md` 是較早的文字草案，若與 FigJam 不一致，以 FigJam 為準。
