@@ -20,9 +20,10 @@
 
 | 項目 | 暫定假設 | 狀態 |
 | --- | --- | --- |
+| 後端框架 | **FastAPI**（理由見 [5.1](#51-後端框架與基礎慣例未定案)） | 已定案 |
 | Base path | `/api/v1/` | 待確認（要不要做版本號） |
-| 格式 | Request／Response 皆為 JSON | 待確認 |
-| 認證方式 | 未定（session cookie／JWT 皆可能） | 待確認，見 [5.1](#51-後端框架與基礎慣例未定案) |
+| 格式 | Request／Response 皆為 JSON；**上傳圖片的 API 例外，為 `multipart/form-data`**（見 [5.2](#52-圖片上傳機制未定案)，已定案用方案 A 直傳後端） | 圖片上傳已定案，其餘待確認 |
+| 認證方式 | 未定（session cookie／JWT 皆可能，建議搭配 FastAPI 用 `OAuth2PasswordBearer`＋JWT） | 待確認，見 [5.1](#51-後端框架與基礎慣例未定案) |
 | 錯誤格式 | 未定，暫定 `{ "error": { "code": "...", "message": "..." } }` | 待確認 |
 | 分頁 | 未定，列表類 API 先假設 `page`＋`page_size` | 待確認 |
 | 時間格式 | ISO 8601（`datetime`／`date` 對齊 FigJam ER 型別） | 可直接採用 |
@@ -63,7 +64,9 @@
 | `GET /users/{id}/following` | 追蹤清單燈箱（following 頁籤） | [2.8](features.md#28-追蹤) | `FOLLOW` |
 | `GET /categories` | 作品類型查找表 | [0 共用規則](features.md#0-共用規則分類與標籤) | `CATEGORY` |
 | `GET /purposes` | 用途查找表 | [0](features.md#0-共用規則分類與標籤) | `PURPOSE` |
-| `GET /tags?q=` | 自訂標籤自動完成／查詢（去空白、不分大小寫比對規則見 [5.8](#58-標籤比對去空白英文不分大小寫沿用既有標籤由前端查詢還是後端處理)） | [0](features.md#0-共用規則分類與標籤) | `TAG` |
+| `GET /tags?q=` | 自訂標籤自動完成建議（輸入時提示既有標籤，**非必要欄位**，不影響送出格式） | [0](features.md#0-共用規則分類與標籤) | `TAG` |
+
+> 標籤比對已定案（見 [5.8](#58-標籤比對去空白英文不分大小寫沿用既有標籤由前端查詢還是後端處理)）：`POST /works`、`POST /commission-items` 的標籤欄位直接送**文字陣列**（不是 `tag_id`），去空白、英文不分大小寫、沿用既有標籤或新建的比對邏輯全部由後端處理。
 
 ### 2.3 模組三｜個人中心
 
@@ -92,15 +95,14 @@
 | `POST /orders/{id}/confirm-quote` | 委託人確認報價，進入付款流程 | [4.3 付款頁](features.md#43-付款頁委託人) | `ORDER` |
 | `GET /orders/{id}/payment` | 取得付款資訊（虛擬帳號、銀行代碼、期限） | [4.3](features.md#43-付款頁委託人) | `PAYMENT` |
 | `POST /orders/{id}/payment/plan` | 選擇付款方案（先付訂金／一次付清） | [4.3](features.md#43-付款頁委託人) | `PAYMENT`、`ORDER.payment_plan` |
-| `POST /orders/{id}/payment/notify-paid` | 「通知已付款」 | [4.3](features.md#43-付款頁委託人) | `PAYMENT` |
-| `POST /orders/{id}/payment/simulate-paid` | 「模擬入帳」（demo，契約成立） | [4.3](features.md#43-付款頁委託人) | `PAYMENT`、`ORDER` |
+| `POST /orders/{id}/payment/actions`<br>body `{ "action": "notify_paid" \| "simulate_paid" }` | 「通知已付款」／「模擬入帳」（demo，契約成立）合併成一個 action 參數的 API（已定案，見 [5.3](#53-模擬金流按鈕要不要獨立-api)） | [4.3](features.md#43-付款頁委託人) | `PAYMENT`、`ORDER` |
 | `GET /orders/{id}` | 訂單詳情（契約快照、目前階段、結算用欄位，見[第 3 節](#3-金額結算類特殊-api)） | [4.4 委託討論牆](features.md#44-委託討論牆) | `ORDER` |
 | `GET /orders/{id}/stages` | 階段清單與各階段狀態、金額（即時計算） | [4.4](features.md#44-委託討論牆) | `ORDER_STAGE`、`ORDER_STAGE_IMAGE` |
-| `POST /orders/{id}/stages/{stage_no}/submissions` | 創作者上傳／重傳本階段稿件（整組覆蓋，見 [5.2](#52-圖片上傳機制未定案)） | [4.4 上傳作品燈箱](features.md#44-委託討論牆) | `ORDER_STAGE_IMAGE`、`ORDER_STAGE.submitted_at` |
+| `POST /orders/{id}/stages/{stage_no}/submissions`（`multipart/form-data`，1～5 張） | 創作者上傳／重傳本階段稿件；重傳時整個請求帶齊這次全部圖片，後端整組覆蓋（已定案，見 [5.2](#52-圖片上傳機制未定案)） | [4.4 上傳作品燈箱](features.md#44-委託討論牆) | `ORDER_STAGE_IMAGE`、`ORDER_STAGE.submitted_at` |
 | `POST /orders/{id}/stages/{stage_no}/confirm` | 委託人確認該階段審核 | [4.4](features.md#44-委託討論牆) | `ORDER_STAGE` |
 | `GET /orders/{id}/topup` | 補款資訊（金額即時計算、期限） | [4.4 補款頁](features.md#44-委託討論牆) | `PAYMENT` |
-| `POST /orders/{id}/topup/notify-paid` | 「通知已補款」 | [4.4](features.md#44-委託討論牆) | `PAYMENT` |
-| `POST /orders/{id}/topup/simulate-paid` | 「模擬入帳」（demo，視同確認最後階段並結案） | [4.4](features.md#44-委託討論牆) | `PAYMENT`、`ORDER` |
+| `POST /orders/{id}/topup/actions`<br>body `{ "action": "notify_paid" \| "simulate_paid" }` | 「通知已補款」／「模擬入帳」（demo，視同確認最後階段並結案），合併成一個 action 參數的 API（已定案，見 [5.3](#53-模擬金流按鈕要不要獨立-api)） | [4.4](features.md#44-委託討論牆) | `PAYMENT`、`ORDER` |
+| `POST /orders/{id}/debug/actions`<br>body `{ "action": "expire_payment" \| "expire_topup" \| "expire_topup_grace" \| "force_settle" }` | **demo-only**：手動把案件推進到逾期／強制結算後的狀態，測試與簡報用，上線前整組拔掉（已定案，見 [5.4](#54-系統排程觸發的動作與測試用時間控制)） | [acceptance.md E2E-05／06／07D](acceptance.md#1-主線情境) | `PAYMENT`、`ORDER` |
 | `GET /orders/{id}/messages` | 聊天室訊息列表 | [4.7 聊天室](features.md#47-聊天室) | `MESSAGE` |
 | `POST /orders/{id}/messages` | 傳送訊息（文字／圖片） | [4.7](features.md#47-聊天室) | `MESSAGE` |
 | `POST /orders/{id}/cancel` | 取消委託（契約成立前） | [4.8 取消委託燈箱](features.md#48-取消委託燈箱) | `ORDER.cancel_reason` |
@@ -162,7 +164,7 @@
 | `POST /orders/{id}/terminate`（終止合作） | 甲方或乙方皆可（契約成立後） |
 | `POST /orders/{id}/ratings`（評價） | 甲方或乙方皆可，雙向各自評對方 |
 
-判斷方式待確認，見 [5.6](#56-同一帳號雙重身份時訂單類-api-怎麼判斷現在是哪一方)。
+判斷方式已定案，見 [5.6](#56-同一帳號雙重身份時訂單類-api-怎麼判斷現在是哪一方)。
 
 ### 4.3 狀態機對應（API → 狀態轉移）
 
@@ -172,11 +174,11 @@
 | --- | --- |
 | `POST /orders` | 建立，進入「待乙方報價」 |
 | `POST /orders/{id}/quote` | 「待乙方報價」→「待甲方付款」 |
-| `POST /orders/{id}/payment/simulate-paid` | 「待甲方付款」→「製作中」（契約成立） |
-| `POST /orders/{id}/stages/{stage_no}/confirm`（最後階段）／`POST /orders/{id}/topup/simulate-paid` | 「製作中」→「已完成」 |
+| `POST /orders/{id}/payment/actions`（`action=simulate_paid`） | 「待甲方付款」→「製作中」（契約成立） |
+| `POST /orders/{id}/stages/{stage_no}/confirm`（最後階段）／`POST /orders/{id}/topup/actions`（`action=simulate_paid`） | 「製作中」→「已完成」 |
 | `POST /orders/{id}/terminate` | 「製作中」→「已終止」 |
 | `POST /orders/{id}/cancel` | 「待乙方報價」或「待甲方付款」→「已取消」 |
-| 無對應 API（後端排程觸發） | 付款逾期自動取消、逾期強制結算、補款逾期結算，見 [5.4](#54-系統排程觸發的動作確認前端完全不需要呼叫-api) |
+| 無對應 API（後端排程觸發；demo／測試用 `POST /orders/{id}/debug/actions` 代替） | 付款逾期自動取消、逾期強制結算、補款逾期結算，見 [5.4](#54-系統排程觸發的動作與測試用時間控制) |
 
 ---
 
@@ -186,65 +188,84 @@
 
 ### 5.1 後端框架與基礎慣例未定案
 
-- **情境**：淳還沒決定 Python 用哪個框架（FastAPI／Django REST Framework／Flask），第 1 節的錯誤格式、分頁、驗證方式都只是暫定假設。
-- **要討論**：
-  1. 錯誤回應格式：統一 `{error:{code, message}}` 這種前端好 parse 的格式，還是用框架預設（例如 DRF 預設格式）？
-  2. 分頁：作品牆、約稿管理列表、通知列表這幾個 list API 要不要分頁？用 `page`＋`page_size` 還是 cursor？
-  3. 驗證方式：session cookie 還是 JWT／token-based？Vue3 SPA 常見用 token，但要看淳對後端框架的熟悉度。
+**狀態：框架已定案（FastAPI），錯誤格式／分頁／驗證方式仍待確認**
+
+- **框架：FastAPI**（2026/10/15 定案），理由：
+  1. **自動產生互動式 API 文件**（Swagger UI／ReDoc，直接從程式碼的型別標註與 Pydantic model 生成）。這正好解決這份 `api.md` 存在的問題——對規格時不用再手動一條條核對 request/response，FastAPI 生出來的文件就是即時、保證跟程式碼一致的規格，之後 api.md 可以只留「這支 API 做什麼、對應哪個畫面」，細節欄位直接看自動文件。
+  2. 用 Python type hint 寫，概念上接近 TypeScript 的型別系統，對完全沒寫過後端但寫 TS 的人會比較好上手。
+  3. 內建檔案上傳處理（`UploadFile`），正好對上 [5.2](#52-圖片上傳機制未定案) 已定案的「直傳後端」方案，不用額外找套件。
+  4. 比 Django 輕量，這個專案明確「沒有營運後台」（[prd.md](prd.md#mvp-範圍)），用不到 Django admin 這類開箱即用但這裡不需要的功能；搭配 **SQLModel**（FastAPI 作者寫的套件，整合 SQLAlchemy＋Pydantic）可以直接對應 ER 圖的 19 張表，schema 只要寫一次。
+- **還沒定案的部分**：錯誤格式、分頁、驗證方式，待跟淳對規格時一起定，暫定對齊 FastAPI 慣例：`HTTPException`＋統一的錯誤 response model、`page`＋`page_size` 查詢參數、`OAuth2PasswordBearer`＋JWT。
 - **影響範圍**：幾乎所有 list／寫入類 API 的格式，建議第一次對規格會議就先定這三件事，其他 endpoint 才能照同一套慣例寫。
 
 ### 5.2 圖片上傳機制未定案
 
-- **情境**：涉及的上傳情境——`USER.avatar_url`（單張）、`WORK_IMAGE`（1～20 張）、`COMMISSION_ITEM_IMAGE`（1～5 張）、`ORDER_STAGE_IMAGE`（每次 1～5 張）、`ORDER_REFERENCE_IMAGE`、聊天室 `MESSAGE.image_url`（單張）。
-- **選項**：
-  - **A．直傳後端**：前端 `multipart/form-data` 直接丟後端存檔、回網址。簡單，demo 流量小沒差；缺點是後端要處理檔案 I/O。
-  - **B．presigned URL**：後端只發簽好的上傳網址，前端直傳雲端（S3-like），上傳完再呼叫後端「確認上傳完成」寫入資料庫。省後端流量，但要多串雲端 SDK，demo 規模可能過度設計。
-- **特別要注意的規則**（見 [data-model.md 4.3](data-model.md#43-order_stage_image-上傳規則)）：`ORDER_STAGE_IMAGE` 同一階段重傳是「整組覆蓋」——刪掉該 `stage_id` 底下所有列再重寫、`seq_no` 從 1 重編。不管選 A 或 B，`POST /orders/{id}/stages/{stage_no}/submissions` 都要設計成「整組替換」而不是逐張新增；選 B 的話還要處理舊檔案要不要清掉（孤兒檔案）的問題。
-- **影響範圍**：5 種上傳情境的 API 設計，以及重傳覆蓋語意要不要用同一個 endpoint（整組 PUT）還是先刪後 POST 兩步。
+**狀態：已定案 — 方案 A（直傳後端）**
+
+- 涉及的上傳情境：`USER.avatar_url`（單張）、`WORK_IMAGE`（1～20 張）、`COMMISSION_ITEM_IMAGE`（1～5 張）、`ORDER_STAGE_IMAGE`（每次 1～5 張）、`ORDER_REFERENCE_IMAGE`、聊天室 `MESSAGE.image_url`（單張），全部採用**方案 A：前端 `multipart/form-data` 直接丟後端存檔、回網址**，不做 presigned URL／雲端直傳。
+- 實務上：有圖片的建立／更新 API（`POST /works`、`POST /commission-items`、`PATCH /me/profile`、`POST /orders`、`POST /orders/{id}/messages`、`POST /orders/{id}/stages/{stage_no}/submissions`）body 都改成 `multipart/form-data`，圖片檔案與其他欄位一起送；後端存檔位置（本機磁碟或之後換物件儲存）是淳的實作細節，不影響這裡的 API 形狀。
+- **`ORDER_STAGE_IMAGE` 整組覆蓋**（見 [data-model.md 4.3](data-model.md#43-order_stage_image-上傳規則)）：重傳時前端把這次要送的全部圖片（1～5 張）一次放進同一個 `POST /orders/{id}/stages/{stage_no}/submissions` 請求，後端收到後刪掉該 `stage_id` 底下所有舊列、整組重寫、`seq_no` 從 1 重編——不是逐張增量上傳，前端也不需要先呼叫刪除 API。
+- **影響範圍**：第 1 節共用慣例已標註圖片類 API 是 `multipart/form-data` 的例外；對規格時跟淳確認檔案大小限制（各畫面已有的 5MB／張）在後端怎麼擋（框架層級或自己寫驗證）。
 
 ### 5.3 模擬金流按鈕要不要獨立 API
 
-- **情境**：「模擬入帳」「通知已付款」「通知已補款」目前都是 demo 用的按鈕，效果是改 `PAYMENT.status`。
-- **要討論**：這些要設計成一個「更新付款狀態」API 吃不同 action 參數，還是各自獨立 endpoint（目前第 2.4 節暫定列成獨立 endpoint，如 `POST /orders/{id}/payment/simulate-paid`）？
-- **為什麼要先想清楚**：[prd.md](prd.md#mvp-範圍) 明確寫 v1.1 以後要串真實金流（綠界代收轉付），到時「模擬入帳」這個手動觸發的 API 要整個拔掉、換成金流服務的 webhook callback。語意清楚的獨立 endpoint 之後拔掉比較乾淨；混在同一個通用更新 API 裡，之後要拆會比較麻煩。
+**狀態：已定案 — 用 action 參數合併**
+
+- 「模擬入帳」「通知已付款」「通知已補款」這幾個 demo 用按鈕，改成兩個各自吃 `action` 參數的 API（已反映在第 2.4 節）：
+  - `POST /orders/{id}/payment/actions`，body `{ "action": "notify_paid" | "simulate_paid" }`
+  - `POST /orders/{id}/topup/actions`，body `{ "action": "notify_paid" | "simulate_paid" }`
+- **決定原因**：這次 demo 不打算真的串綠界代收轉付，所以不需要為了「之後好拔掉換 webhook」預先把每個按鈕切成獨立 endpoint；用 action 參數省事，之後如果真要做 v1.1 金流串接，屆時這塊 API 會整個重新設計，現在不用先做乾淨切分。
 
 ### 5.4 系統排程觸發的動作與測試用時間控制
 
-> 這一項直接對應 [acceptance.md 第 5 節「還沒決定」#6](acceptance.md#5-待確認事項)：E2E-05、E2E-06、E2E-07 子情境 D 都標了「需時間控制」，acceptance.md 寫明「前端 Playwright clock 擋不住後端計時，需要後端提供測試用的時間控制，這點留給 api.md 決定」——這裡就是要決定的地方，對規格時務必跟淳定案。
+**狀態：已定案 — 可調閾值 ＋ demo-only 手動觸發，組合使用**
 
-- **情境**：以下動作都是後端排程／cron 觸發，不是前端按按鈕（見 [order-lifecycle.md 二｜計時規則](order-lifecycle.md#二計時規則)）：
+> 這一項直接對應 [acceptance.md 第 5 節「還沒決定」#6](acceptance.md#5-待確認事項)：E2E-05、E2E-06、E2E-07 子情境 D 都標了「需時間控制」，acceptance.md 寫明「這點留給 api.md 決定」——這裡是決定內容，對規格時跟淳確認可行性，確定後回 `acceptance.md` 把 #6 從「還沒決定」移到「已定案」。
+
+- **情境**：以下動作都是後端排程／cron 觸發，不是前端按按鈕（見 [order-lifecycle.md 二｜計時規則](order-lifecycle.md#二計時規則)），前端完全不呼叫 API 觸發，只被動收到通知後重新 `GET /orders/{id}`：
   - 付款期限 3 天到期未入帳 → 自動取消（E2E-07 子情境 D）
   - 補款期限 7 天到期 → 進入 7 天等待期；等待期滿仍未補齊 → 「最後階段未完成」結算（E2E-05）
   - 整筆委託最終截稿日 +30 天仍未了結 → 系統強制結算（E2E-06）
   - 結算後委託人應補付未付 → 鎖帳號
-- **前端完全不呼叫 API 觸發**：前端只需要「被動反應」——收到通知後重新 `GET /orders/{id}`，這點不用討論。要討論的是 Playwright 測試（以及 demo 簡報）要怎麼讓後端的 3／7／30 天提前發生：
-  1. **假時間注入**：後端在測試／demo 環境額外接受一個「目前時間」覆寫（例如 header 或測試專用 API 設定 fake now），所有計時都以這個基準算，正式環境關閉。最貼近真實邏輯，但後端要多做一層時間抽象層，實作成本較高。
-  2. **可調閾值**：把 3／7／30 天抽成環境變數／設定值，測試環境調小（例如 3 天→30 秒、30 天→5 分鐘），正式環境維持原值。改動小，但要注意「7 天等待期接著另一個 7 天」這種連續計時，調小後測試要等兩段。
-  3. **demo-only 手動觸發 endpoint**：跳過「等時間流逝」，直接提供 `POST /orders/{id}/force-settle-debug` 之類的端點，直接把指定 ORDER 推進到「已逾期」「強制結算後」的最終狀態，上線前整段拔掉。實作最快，但驗證的是「結算邏輯對不對」，驗不到「真的等到期限才觸發」這件事本身。
-  - **建議方向**：選項 2（可調閾值）＋選項 3（手動觸發）組合——可調閾值讓 E2E-05／E2E-06／E2E-07D 的「到期後發生什麼」有機會在合理測試時間內跑完整個流程；手動觸發則用在只想驗證結算金額、不想等任何時間的單元測試。選項 1 的真實度最高但目前团队規模（demo，兩人）不一定值得投入，先列出來讓淳評估實作成本後決定。
-- **影響範圍**：`acceptance.md` E2E-05、E2E-06、E2E-07 子情境 D 這三條 P1／P0 測試能不能寫、怎麼寫；決定後要回 `acceptance.md` 把「需時間控制」改成具體操作方式，並把第 5 節的 #6 從「還沒決定」移到「已定案」。
+- **可調閾值**：把 3／7／30 天抽成設定值（環境變數或設定檔），正式環境用正常天數，測試／demo 環境調小（例如 3 天→30 秒、30 天→5 分鐘）。要注意「補款期限 7 天接著等待期 7 天」這種連續計時，調小後測試仍要等兩段。
+- **demo-only 手動觸發**：新增一組 debug 專用 API，風格對齊 [5.3](#53-模擬金流按鈕要不要獨立-api) 的 action 參數決定，不用再想獨立 endpoint 命名：
+  `POST /orders/{id}/debug/actions`，body `{ "action": "expire_payment" | "expire_topup" | "expire_topup_grace" | "force_settle" }`，直接把指定 `ORDER` 推進到對應的逾期／結算後狀態。只在非正式環境開放（例如用環境變數整組關掉這個 router），上線前拔掉或鎖權限。
+- **分工**：可調閾值驗的是「到期後邏輯對不對」，手動觸發驗的是「結算金額對不對」且不用等任何時間，兩者互補，Playwright 測試視情境選一種用。
+- **影響範圍**：`acceptance.md` E2E-05、E2E-06、E2E-07 子情境 D 這三條測試可以直接用 `/debug/actions` 寫，不用真的等待（或搭配調小的閾值測「到期後」的那一刻）。
 
 ### 5.5 聊天室與通知更新機制：輪詢頻率，還是要做推播
 
-- **情境**：`MESSAGE`、`NOTIFICATION` 在 [features.md](features.md#47-聊天室) 都明確定義為「非即時」。
-- **要討論**：前端用 `setInterval` 輪詢（例如每 10～30 秒打一次 `GET /notifications/unread-count`），還是要上 WebSocket／SSE？
-- **傾向**：demo 規模輪詢應該夠用，但頻率要跟後端一起定（太頻繁增加後端負擔，太慢使用者會覺得沒更新）；順便確認「未讀數」這個輕量 API 要不要獨立於完整列表 API 之外，討論牆開著時可能一直輪詢，不該每次都把整個列表撈出來。
+**狀態：已定案 — 輪詢，依場景分頻率**
+
+- **不做 WebSocket／SSE**：`MESSAGE`、`NOTIFICATION` 在 [features.md](features.md#47-聊天室) 都明確定義為「非即時」，這是產品本身的決定，不是技術妥協。真正的即時推播要處理持久連線、斷線重連、多分頁／多裝置同步、後端要維護連線狀態——這些成本對一個兩人、demo 規模、本來就設計成非即時的專案不成比例。輪詢足夠，且前後端都是目前已經在用的一般 REST API，不需要多學一套技術。
+- **輪詢怎麼切，依場景給不同頻率**：
+  | 場景 | 打哪支 API | 頻率 | 什麼時候跑／停 |
+  | --- | --- | --- | --- |
+  | header 通知鈴鐺未讀數 | `GET /notifications/unread-count` | 15～30 秒 | 使用者登入後全站背景跑；分頁切到背景（`document.visibilitychange`）就停止或降頻，省後端資源 |
+  | 通知中心「對話」頁籤 | `GET /conversations` | 不常駐輪詢，打開頁籤時打一次即可 | 頁籤收起就停 |
+  | 討論牆聊天室（浮動視窗展開時） | `GET /orders/{id}/messages` | 5～8 秒 | 只有視窗展開時才跑，收起就停；使用者正盯著看，可以比鈴鐺快一點 |
+- **實作方式**：Vue3 寫一個共用 composable（例如 `usePolling(fetchFn, intervalMs)`），在 `onMounted` 啟動 `setInterval`，在 `onUnmounted` 與 `visibilitychange` 切背景時清掉，三個場景共用同一套邏輯，不用各自重複寫計時器管理。
+- **實作時留意**：demo 使用者數量是個位數，上面的頻率對後端負擔不是問題；`GET /notifications/unread-count` 這支輕量 API 若淳覺得沒差，也可以直接拿掉，前端改打 `GET /notifications` 自己算未讀數，不影響其他設計。
 
 ### 5.6 同一帳號雙重身份時，訂單類 API 怎麼判斷「現在是哪一方」
 
+**狀態：已定案**
+
 - **情境**：約稿管理「已委託」「已接案」兩個頁籤是同一個使用者，但一個是甲方視角一個是乙方視角；報價、確認階段、終止合作這些 API 的權限判斷都要分清楚呼叫者是 `ORDER.commissioner_id` 還是 `creator_id`。
-- **要討論**：後端直接用 token 裡的 `user_id` 比對該筆 `ORDER` 的兩個欄位、依結果決定能呼叫哪些動作（例如報價只能乙方呼叫、確認階段只能甲方呼叫），前端不需要額外傳「視角」參數——這樣最不容易出錯，但要跟淳確認後端是否也這麼打算。
-- **影響範圍**：[4.2 權限規則](#42-權限規則動作-→-允許呼叫者)整張表的實際判斷邏輯，對規格時逐條跟淳確認。
+- **定案**：後端直接用 token 裡的 `user_id` 比對該筆 `ORDER` 的兩個欄位、依結果決定能呼叫哪些動作（例如報價只能乙方呼叫、確認階段只能甲方呼叫），**前端不傳任何「視角」參數**，全部由後端依資料判斷，這樣前端沒有機會傳錯視角造成誤判。
+- **影響範圍**：[4.2 權限規則](#42-權限規則動作-→-允許呼叫者)整張表就是這個判斷邏輯的具體動作清單，對規格時逐條跟淳確認錯誤回應格式（例如呼叫者不是允許的一方時回什麼錯誤碼）。
 
 ### 5.7 防自刷（同帳號不能委託自己）由後端擋，前端只是提示
 
+**狀態：延後討論（先不處理，等之後再定）**
+
 - **情境**：[features.md 1.3](features.md#13-身份)「委託人與創作者是同一個帳號時，擋下送出委託」。
-- **要討論**：`POST /orders` 要回什麼錯誤碼／訊息，前端才能顯示對應提示（而不是顯示通用錯誤）。這個檢查必須後端擋（防止前端被跳過），前端頂多提前做 UI 隱藏。
+- **先維持現狀**：`POST /orders` 的錯誤碼／訊息格式這次先不決定，等之後有空再跟淳討論；這個檢查本身確定要放在後端（防止前端被跳過），前端頂多提前做 UI 隱藏，不影響這份文件其他部分的設計。
 
 ### 5.8 標籤比對（去空白、英文不分大小寫、沿用既有標籤）由前端查詢還是後端處理
 
+**狀態：已定案 — 後端處理**
+
 - **情境**：上傳作品／委託項目時掛標籤，規則是「比對到既有標籤就沿用，不新增」（見 [features.md 0](features.md#0-共用規則分類與標籤)）。
-- **選項**：
-  - 前端先呼叫 `GET /tags?q=` 查詢既有標籤，使用者選到既有的就送 `tag_id`，沒選到的新字串才送出讓後端建立。
-  - 或者前端一律送文字陣列，後端自己做正規化比對與建立。
-- **建議討論方向**：後端處理比較保險（避免兩人同時建立同義字造成競態重複），但前端還是需要 `GET /tags?q=` 做輸入建議，這支查詢 API 要不要算進這次要定案的清單，也請跟淳確認。
+- **定案**：`POST /works`、`POST /commission-items` 的標籤欄位送**文字陣列**，不送 `tag_id`；去空白、英文不分大小寫、沿用既有標籤或新建的正規化邏輯全部由後端處理（避免兩人同時建立同義字造成競態重複）。
+- `GET /tags?q=` 保留，作為前端輸入時的自動完成建議，純粹方便使用者打字，不影響送出格式、也不是必要欄位。
