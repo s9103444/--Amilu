@@ -6,6 +6,7 @@
 ## 2026/10/15
 
 - 新增 `acceptance.md`：依 `prd.md`、`features.md`、`order-lifecycle.md`、`data-model.md` 整理 8 條 E2E 主線情境（正常完成、中途終止、雙輸終止、只付訂金補款、補款逾期、逾期強制結算、契約成立前取消、Amilu 燈可見性）、各模組細部驗收條件、固定金額驗算表與反向驗收清單。對照各 spec 時發現 7 處規格有出入或未寫清楚，其中四點當天定案：①撥款只發生在訂金撥款、尾款撥款、終止結算三個時點，中間階段確認不撥款（`order-lifecycle.md` 付款方案同步修正「逐階段撥款」）②逾期強制結算時階段 1 有上傳視為已確認，先撥訂金，階段 2 起依終止結算金額處理③所有契約快照（`item_title_snapshot`、`deposit_percent_snapshot`、`revision_count_snapshot`、`stage_plan_snapshot`）統一在送出委託申請時鎖定（`data-model.md` 4.1 同步修正，原寫三者在確認報價時鎖）④已取消的案件雙方仍可互評。⑤補款期限定為 7 天（自創作者上傳最後階段起算），到期後另有 7 天等待期；`order-lifecycle.md` 計時表補上天數，`data-model.md` 問題清單第 4 點標記已解決。⑥終止結算的創作者可得定為「已確認階段金額總和」，第一階段就是訂金、不重複計算，`order-lifecycle.md` 表格文字由「訂金% ＋ 已確認階段費用」改正。測試用時間控制留待寫 `api.md` 時決定，列在 `acceptance.md` 第 5 節。同步 `README.md` 文件清單狀態改為 ✅。
+- 新增 `api.md` 草案：前端（彥廷）先依 `features.md`、`order-lifecycle.md`、`data-model.md` 列出五大模組需要的 API（方法＋路徑＋對應畫面／資料表，不展開完整 request/response，待對規格時補），並整理一份「待確認事項」給跟淳對規格用，共 8 項：後端框架與錯誤格式／分頁／驗證方式未定案、圖片上傳機制（直傳 vs presigned URL，含 `ORDER_STAGE_IMAGE` 整組覆蓋語意）、模擬金流按鈕要不要獨立 endpoint（對應之後接綠界要好拔換）、系統排程觸發動作與**測試用時間控制**（回應 `acceptance.md` 第 5 節 #6 的待決定項，列出假時間注入／可調閾值／demo 手動觸發三個選項並建議方向）、聊天室與通知輪詢頻率、雙重身份的權限判斷方式、防自刷錯誤碼、標籤比對邏輯歸屬。`README.md` 文件清單狀態改為「草案已列」，待跟後端對完規格才改 ✅。
 
 ## 2026/10/12
 
