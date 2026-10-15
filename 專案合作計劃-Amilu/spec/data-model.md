@@ -69,10 +69,10 @@
 | 表 | 中文 | PK | 重點 |
 | --- | --- | --- | --- |
 | `ORDER` | 委託案件／契約 | `order_id` | 核心表；含契約快照欄位、雙方同意時間、評分、終止資訊 |
-| `ORDER_STAGE` | 訂單分段紀錄 | `stage_id` | 一筆訂單 1 列（單段）或 5 列（五點分段） |
+| `ORDER_STAGE` | 訂單分段紀錄 | `stage_id` | 一筆訂單 3 列（三點分段）或 5 列（五點分段） |
 | `ORDER_STAGE_IMAGE` | 階段稿件圖片 | `stage_id` ＋ `seq_no` | 弱實體；每階段最多 5 張，存浮水印預覽與正式稿兩個網址 |
 | `ORDER_REFERENCE_IMAGE` | 委託申請參考圖片 | `order_id` ＋ `seq_no` | 弱實體；只存申請時附的原始參考圖 |
-| `PAYMENT` | 模擬金流／託管紀錄 | `payment_id` | 一筆訂單多筆：託管入款、撥款、退款 |
+| `PAYMENT` | 模擬金流／託管紀錄 | `payment_id` | 一筆訂單多筆：託管入款、撥款、退款、結算後補付入款（`type` 區分） |
 
 ### 2.4 溝通與通知
 
@@ -147,18 +147,19 @@ FigJam 上有四張標題為「備註」的便利貼，貼在對應的表旁邊�
 ### 4.2 ORDER_STAGE.stage_no 編碼
 
 - 五點分段：1 草稿、2 線稿、3 彩稿、4 精稿、5 完稿，共 5 列。
-- 單段：只有 1 列，`stage_no` ＝ 5。1 只是兩種模式共用的起點，單段沒有草稿截止，不建列。
-- 判斷規則：`stage_no` ＝ 5 永遠代表完稿（最後階段）。
+- 三點分段（原「單段」，2026/10/15 起中間多一次審核）：1 草稿、4 精稿、5 完稿，共 3 列，沿用五點分段的編號，不另編、不遞補，所以 `stage_no` 會是 1、4、5。
+- 判斷規則：`stage_no` ＝ 5 永遠代表完稿（最後階段）；`stage_no` ＝ 1 永遠是第一階段（訂金階段）。兩種分段方式共用這兩個判斷。
 
 ### 4.3 ORDER_STAGE_IMAGE 上傳規則
 
 - 乙方每次上傳 1～5 張，單張 5MB 以內（JPG／PNG／WebP）。
 - 同一階段重傳視為覆蓋：刪除該 `stage_id` 底下所有列再重寫，`seq_no` 從 1 重編，並更新 `ORDER_STAGE.submitted_at`。
-- 甲方確認該階段後即鎖定，不可重傳。
+- 階段 1～4：甲方確認該階段後即鎖定，不可重傳。
+- 完稿（`stage_no` ＝ 5）：定稿（確認收稿、7 天窗口期滿或補款入帳）前都可以重傳覆蓋，每次重傳除了更新 `submitted_at`，也要重算 `ORDER.finalize_due_at`；定稿後鎖定。
 
 ### 4.4 ORDER 結案方式判斷（不另設欄位）
 
-- **已完成**：`status` ＝ 已完成，時間看 `completed_at`；最後階段的 `ORDER_STAGE.confirm_status` 一律是人工確認（過程沒有自動確認機制，見 order-lifecycle.md）。
+- **已完成**：`status` ＝ 已完成，時間看 `completed_at`；階段 1～4 的 `ORDER_STAGE.confirm_status` 一律是人工確認（過程沒有自動確認機制）；完稿（`stage_no` ＝ 5）則是乙方上傳即視同確認，定稿時點見 order-lifecycle.md。
 - **已終止**：`status` ＝ 已終止，發起方送出時寫入 `terminated_by_id`，與 `commissioner_id` 比對即知是甲方或乙方發起；第一階段 `ORDER_STAGE.paid` 決定是雙輸或已撥款結算。
 - **補款金額**：後端即時計算 ＝ `quote_amount` − PAYMENT 已託管入款的 `amount` 加總，不存欄位。
 
@@ -204,7 +205,13 @@ FigJam 上有四張標題為「備註」的便利貼，貼在對應的表旁邊�
 1. **「關聯通知」那條線沒有接到 NOTIFICATION**：ORDER 到 NOTIFICATION 的連接線，終點掛在畫布上而不是 NOTIFICATION 這張表。`NOTIFICATION.order_id` 欄位本身是對的，只是線要重接。
 2. **有兩個 FK 沒有畫線**：`TAG.created_by_id` 指向 USER、`ORDER.terminated_by_id` 指向 USER，圖上都沒有對應的關聯線。
 3. **已解決**：惡意棄單機制已經拿掉（2026/10/12，見 `order-lifecycle.md`、changelog），改用統一的「最終截稿日 +30 天系統強制結算」，結算一律走「已終止」，不需要新增 `status` 值，原本的問題不存在了。但 FigJam 上 `USER.lock_reason` 的「惡意棄單」這個列舉值已經沒有對應情境，需要回頭去 FigJam 清掉。
-4. **已解決**（2026/10/15）：補款期限定為 7 天（自創作者上傳最後階段起算），到期後另有 7 天等待期，兩者是獨立的兩段，`ORDER.topup_due_at` 記的是補款期限到期時間。
-5. **ORDER 同時有 `terminated_by_id` 與 `cancel_reason`**：`cancel_reason` 的說明是「取消／終止原因」，同一欄位共用兩種情境。若終止原因與取消原因之後要分開查詢，需要拆欄位。
+4. **已解決**（2026/10/15）：補款期限（一次付清則為完稿窗口）定為 7 天，起算點 ＝ 乙方最近一次上傳完稿的時間（提前交稿也從上傳當下起算，不等截稿日），每次重傳都重算；只付訂金案件到期後另有 7 天等待期，兩者是獨立的兩段。`ORDER.finalize_due_at`（原 `topup_due_at`）記的是這個期限的到期時間。
+5. **已解決**（2026/10/15）：`cancel_reason` 維持單一欄位，說明為「取消／終止合作原因」，不拆欄位；是取消還是終止，由 `status` 與 `terminated_by_id` 判斷。
+
+6. **已決定改名**（2026/10/15）：`topup_due_at` 一次付清的完稿窗口也用它，不再只是補款期限，改名為 `finalize_due_at`（完稿定稿／補款期限到期時間）。**FigJam 尚未同步**，在 FigJam 改完之前，FigJam 上的 `topup_due_at` 與本文的 `finalize_due_at` 是同一個欄位，語意以本文為準。
+7. **已解決**（2026/10/15）：結算後的補付入款不新增欄位，用既有的 `PAYMENT.type` 新增一個值「補付入款」（現有值：託管入款／訂金撥款／尾款撥款／退款）；`PAYMENT.status` 不新增狀態。
+8. **已解決**（2026/10/15）：完稿窗口期間可以申請終止合作，完稿視同已確認階段，創作者可得包含完稿費用。**還沒決定**：只付訂金案件在這個情境終止時，委託人要先補付「應補付」才能下載完稿圖，還是結算當下就能下載？目前 `acceptance.md` S10 先標「下載時點待定」。
+9. **已解決**（2026/10/15）：終態案件的聊天室唯讀，可看歷史訊息、不能再傳訊。
+10. **FigJam 需手動同步的文字**（2026/10/15，本文已改、FigJam 尚未改）：①`ORDER.topup_due_at` 改名 `finalize_due_at`，說明改為「完稿定稿／補款期限到期時間（乙方最近一次上傳完稿起算 7 天）」，原說明「最後階段確認前」已過時②`ORDER_STAGE.submitted_at` 說明「auto-confirm 與棄單判定起算」已過時（auto-confirm 與惡意棄單機制 10/12 已拿掉），改為「乙方最近一次上傳時間（重傳覆蓋）；完稿的上傳時間是 7 天期限起算點」③`COMMISSION_ITEM.stage_plan_pref`、`ORDER.stage_plan_snapshot` 的合法值「單段」改為「三點分段」④`ORDER_STAGE.stage_no` 說明「單段僅 5」改為「三點分段 1／4／5」⑤`PAYMENT.type` 新增「補付入款」⑥`ORDER.cancel_reason` 說明已是「取消／終止原因」，不用改⑦便利貼 4.2、4.3 對應本文 4.2、4.3 的更新。
 
 另外 `延伸檔案/ER模型-實體初步草案.md` 是較早的文字草案，若與 FigJam 不一致，以 FigJam 為準。

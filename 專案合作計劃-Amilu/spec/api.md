@@ -97,12 +97,15 @@
 | `GET /orders/{id}` | 訂單詳情（契約快照、目前階段、結算用欄位，見[第 3 節](#3-金額結算類特殊-api)） | [4.4 委託討論牆](features.md#44-委託討論牆) | `ORDER` |
 | `GET /orders/{id}/stages` | 階段清單與各階段狀態、金額（即時計算） | [4.4](features.md#44-委託討論牆) | `ORDER_STAGE`、`ORDER_STAGE_IMAGE` |
 | `POST /orders/{id}/stages/{stage_no}/submissions` | 創作者上傳／重傳本階段稿件（整組覆蓋，見 [5.2](#52-圖片上傳機制未定案)） | [4.4 上傳作品燈箱](features.md#44-委託討論牆) | `ORDER_STAGE_IMAGE`、`ORDER_STAGE.submitted_at` |
-| `POST /orders/{id}/stages/{stage_no}/confirm` | 委託人確認該階段審核 | [4.4](features.md#44-委託討論牆) | `ORDER_STAGE` |
+| `POST /orders/{id}/stages/{stage_no}/confirm` | 委託人確認該階段審核（階段 1～4）；`stage_no`＝5 時為「確認收稿」，只有一次付清案件可呼叫，提前定稿 | [4.4](features.md#44-委託討論牆) | `ORDER_STAGE` |
 | `GET /orders/{id}/topup` | 補款資訊（金額即時計算、期限） | [4.4 補款頁](features.md#44-委託討論牆) | `PAYMENT` |
 | `POST /orders/{id}/topup/notify-paid` | 「通知已補款」 | [4.4](features.md#44-委託討論牆) | `PAYMENT` |
-| `POST /orders/{id}/topup/simulate-paid` | 「模擬入帳」（demo，視同確認最後階段並結案） | [4.4](features.md#44-委託討論牆) | `PAYMENT`、`ORDER` |
+| `POST /orders/{id}/topup/simulate-paid` | 「模擬入帳」（demo，補款入帳即定稿並結案） | [4.4](features.md#44-委託討論牆) | `PAYMENT`、`ORDER` |
+| `GET /orders/{id}/settlement-due` | 終態案件的「應補付」金額與匯款資訊（即時計算；無應補付時回空） | [4.5 結案畫面](features.md#45-結案畫面) | `PAYMENT`、`ORDER` |
+| `POST /orders/{id}/settlement-due/notify-paid` | 「通知已補付」 | [4.5](features.md#45-結案畫面) | `PAYMENT` |
+| `POST /orders/{id}/settlement-due/simulate-paid` | 「模擬入帳」（demo，補付入帳後解鎖委託人帳號） | [4.5](features.md#45-結案畫面) | `PAYMENT`、`USER.account_status` |
 | `GET /orders/{id}/messages` | 聊天室訊息列表 | [4.7 聊天室](features.md#47-聊天室) | `MESSAGE` |
-| `POST /orders/{id}/messages` | 傳送訊息（文字／圖片） | [4.7](features.md#47-聊天室) | `MESSAGE` |
+| `POST /orders/{id}/messages` | 傳送訊息（文字／圖片）；終態案件唯讀，不可呼叫 | [4.7](features.md#47-聊天室) | `MESSAGE` |
 | `POST /orders/{id}/cancel` | 取消委託（契約成立前） | [4.8 取消委託燈箱](features.md#48-取消委託燈箱) | `ORDER.cancel_reason` |
 | `GET /orders/{id}/termination-preview` | 終止合作結算試算（三個固定欄位，即時計算） | [4.9 終止合作燈箱](features.md#49-終止合作燈箱) | 見[第 3 節](#3-金額結算類特殊-api) |
 | `POST /orders/{id}/terminate` | 申請終止合作（二次確認後送出，立即生效） | [4.9](features.md#49-終止合作燈箱) | `ORDER.terminated_by_id`／`terminated_at` |
@@ -125,7 +128,7 @@
 
 | 值 | 怎麼拿到 | 對應規則 |
 | --- | --- | --- |
-| 本階段金額 | `GET /orders/{id}/stages` 回應裡每個階段帶 `amount` 欄位。**這只是顯示用的試算金額，不代表撥款**——撥款只發生在三個時點：第一階段確認（撥訂金）、最後階段確認（撥尾款）、終止合作結算，中間階段確認不觸發撥款（2026/10/15 定案，見 [order-lifecycle.md 三｜付款方案](order-lifecycle.md#三金額與結算公式)）。`POST /orders/{id}/stages/{stage_no}/confirm` 只有在 `stage_no`＝1 或＝5（最後階段）時才會連帶產生 `PAYMENT` 已撥款紀錄，中間階段的 confirm 只改 `ORDER_STAGE` 確認狀態 | [order-lifecycle.md 三｜階段金額拆分、付款方案](order-lifecycle.md#三金額與結算公式) |
+| 本階段金額 | `GET /orders/{id}/stages` 回應裡每個階段帶 `amount` 欄位。**這只是顯示用的試算金額，不代表撥款**——撥款只發生在三個時點：第一階段確認（撥訂金）、完稿定稿（撥尾款）、終止合作結算，中間階段確認不觸發撥款（2026/10/15 定案，見 [order-lifecycle.md 三｜付款方案](order-lifecycle.md#三金額與結算公式)）。`POST /orders/{id}/stages/{stage_no}/confirm` 只有在 `stage_no`＝1（撥訂金）或＝5（確認收稿，撥尾款）時才會連帶產生 `PAYMENT` 已撥款紀錄，中間階段的 confirm 只改 `ORDER_STAGE` 確認狀態；一次付清案件的完稿窗口期滿，由後端排程自動定稿並撥款 | [order-lifecycle.md 三｜階段金額拆分、付款方案](order-lifecycle.md#三金額與結算公式) |
 | 補款金額 | `GET /orders/{id}/topup` 回應 | `quote_amount` − `PAYMENT` 已託管入款加總，[data-model.md 4.4](data-model.md#44-order-結案方式判斷不另設欄位) |
 | 終止合作結算試算（委託人已付／創作者可得／委託人退款或應補付） | `GET /orders/{id}/termination-preview` | [order-lifecycle.md 三｜終止合作結算](order-lifecycle.md#三金額與結算公式) |
 | 目前進行到哪一階段 | `GET /orders/{id}/stages` 查哪一筆未確認 | [data-model.md 5.1](data-model.md#51-哪些值刻意不存) |
@@ -145,6 +148,7 @@
 | `item_title_snapshot`、`deposit_percent_snapshot`、`revision_count_snapshot`、`stage_plan_snapshot` | 甲方**送出委託申請時**（2026/10/15 定案，四個欄位都在這個時間點一起鎖，不是契約成立時，見 [data-model.md 4.1](data-model.md#41-order-契約快照欄位)） | 申請時就鎖定，申請後與契約成立後回應相同 |
 | 授權層級 | 送出委託申請時 | 同上 |
 | 報價金額、起訖日、各階段 `deadline` | 乙方報價時填寫，甲方確認報價時鎖定 | 報價前為空，確認後鎖定 |
+| `creator_agreed_at`／`commissioner_agreed_at` | 乙方送出報價時／甲方在付款頁按「確認送出」時（2026/10/15 起，甲方不再記在送出申請時） | 申請後、報價後、付款前，`commissioner_agreed_at` 皆為空 |
 | 其餘契約快照（表單填寫內容、付款方式等，不含上面四個欄位） | 平台確認入帳（契約成立）時 | 成立前後欄位內容不同，待確認是否要用同一個 API 回應區分「草稿版」與「鎖定版」，見 [5.1](#51-後端框架與基礎慣例未定案) |
 
 ### 4.2 權限規則（動作 → 允許呼叫者）
@@ -157,10 +161,11 @@
 | `POST /orders/{id}/quote`（報價） | 乙方 |
 | `POST /orders/{id}/confirm-quote`（確認報價） | 甲方 |
 | `POST /orders/{id}/stages/{stage_no}/submissions`（上傳稿件） | 乙方 |
-| `POST /orders/{id}/stages/{stage_no}/confirm`（確認階段） | 甲方 |
+| `POST /orders/{id}/stages/{stage_no}/confirm`（確認階段；`stage_no`＝5 為確認收稿） | 甲方 |
 | `POST /orders/{id}/cancel`（取消委託） | 甲方或乙方皆可（契約成立前） |
 | `POST /orders/{id}/terminate`（終止合作） | 甲方或乙方皆可（契約成立後） |
 | `POST /orders/{id}/ratings`（評價） | 甲方或乙方皆可，雙向各自評對方 |
+| `POST /orders/{id}/settlement-due/*`（補付應補付金額） | 甲方 |
 
 判斷方式待確認，見 [5.6](#56-同一帳號雙重身份時訂單類-api-怎麼判斷現在是哪一方)。
 
@@ -173,7 +178,7 @@
 | `POST /orders` | 建立，進入「待乙方報價」 |
 | `POST /orders/{id}/quote` | 「待乙方報價」→「待甲方付款」 |
 | `POST /orders/{id}/payment/simulate-paid` | 「待甲方付款」→「製作中」（契約成立） |
-| `POST /orders/{id}/stages/{stage_no}/confirm`（最後階段）／`POST /orders/{id}/topup/simulate-paid` | 「製作中」→「已完成」 |
+| `POST /orders/{id}/stages/5/confirm`（確認收稿，一次付清）／`POST /orders/{id}/topup/simulate-paid`（只付訂金）／後端排程（一次付清，完稿 7 天窗口期滿） | 「製作中」→「已完成」 |
 | `POST /orders/{id}/terminate` | 「製作中」→「已終止」 |
 | `POST /orders/{id}/cancel` | 「待乙方報價」或「待甲方付款」→「已取消」 |
 | 無對應 API（後端排程觸發） | 付款逾期自動取消、逾期強制結算、補款逾期結算，見 [5.4](#54-系統排程觸發的動作確認前端完全不需要呼叫-api) |
@@ -214,9 +219,9 @@
 
 - **情境**：以下動作都是後端排程／cron 觸發，不是前端按按鈕（見 [order-lifecycle.md 二｜計時規則](order-lifecycle.md#二計時規則)）：
   - 付款期限 3 天到期未入帳 → 自動取消（E2E-07 子情境 D）
-  - 補款期限 7 天到期 → 進入 7 天等待期；等待期滿仍未補齊 → 「最後階段未完成」結算（E2E-05）
-  - 整筆委託最終截稿日 +30 天仍未了結 → 系統強制結算（E2E-06）
-  - 結算後委託人應補付未付 → 鎖帳號
+  - 完稿 7 天窗口期滿（起算點為最近一次完稿上傳時間，每次重傳重算，提前交稿也從上傳當下起算）：一次付清 → 自動完成（E2E-09）；只付訂金 → 進入 7 天等待期，等待期滿仍未補齊 → 「最後階段未完成」結算（E2E-05）
+  - 乙方尚未上傳完稿、整筆委託最終截稿日 +30 天仍未了結 → 系統強制結算，只看委託人有沒有確認（E2E-06）
+  - 任何結算後委託人應補付未付 → 鎖帳號
 - **前端完全不呼叫 API 觸發**：前端只需要「被動反應」——收到通知後重新 `GET /orders/{id}`，這點不用討論。要討論的是 Playwright 測試（以及 demo 簡報）要怎麼讓後端的 3／7／30 天提前發生：
   1. **假時間注入**：後端在測試／demo 環境額外接受一個「目前時間」覆寫（例如 header 或測試專用 API 設定 fake now），所有計時都以這個基準算，正式環境關閉。最貼近真實邏輯，但後端要多做一層時間抽象層，實作成本較高。
   2. **可調閾值**：把 3／7／30 天抽成環境變數／設定值，測試環境調小（例如 3 天→30 秒、30 天→5 分鐘），正式環境維持原值。改動小，但要注意「7 天等待期接著另一個 7 天」這種連續計時，調小後測試要等兩段。
