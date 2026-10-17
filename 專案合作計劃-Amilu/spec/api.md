@@ -78,7 +78,7 @@
 | `POST /works`                                                       | 上傳一般作品                                 | [3.2 上傳一般作品](features.md#32-上傳一般作品)     | `WORK`、`WORK_IMAGE`、`WORK_TAG`           |
 | `POST /commission-items`                                            | 上架可委託項目                               | [3.3 上傳可委託項目](features.md#33-上傳可委託項目) | `COMMISSION_ITEM`、`COMMISSION_ITEM_IMAGE` |
 | `PATCH /commission-items/{id}`                                      | 編輯可委託項目                               | [3.3](features.md#33-上傳可委託項目)                | `COMMISSION_ITEM`                          |
-| `DELETE /commission-items/{id}`                                     | 刪除可委託項目                               | [3.3](features.md#33-上傳可委託項目)                | `COMMISSION_ITEM`                          |
+| `DELETE /commission-items/{id}`                                     | 刪除可委託項目（真刪；已有案件讀快照，`ORDER.item_id` 設為空） | [3.3](features.md#33-上傳可委託項目)                | `COMMISSION_ITEM`                          |
 | `GET /me/creator-onboarding`                                        | 開通創作者商店三步驟目前完成狀態             | [3.4 開通創作者商店](features.md#34-開通創作者商店) | `CREATOR_PROFILE`                          |
 | `POST /me/creator-onboarding/confirm`                               | 確認開通（三步驟皆完成後）                   | [3.4](features.md#34-開通創作者商店)                | `CREATOR_PROFILE`                          |
 | `GET /me/creator-settings`                                          | 接案設定讀取                                 | [3.5 接案設定](features.md#35-接案設定)             | `CREATOR_PROFILE`                          |
@@ -146,7 +146,7 @@
 
 | 欄位                                                                                                | 鎖定時間點                                                                                                                                           | 送出委託申請後／契約成立後回應是否不同                                                                                |
 | --------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `item_title_snapshot`、`deposit_percent_snapshot`、`revision_count_snapshot`、`stage_plan_snapshot` | 甲方**送出委託申請時**（2026/10/15 定案，四個欄位都在這個時間點一起鎖，不是契約成立時，見 [data-model.md 4.1](data-model.md#41-order-契約快照欄位)） | 申請時就鎖定，申請後與契約成立後回應相同                                                                              |
+| `item_title_snapshot`、`item_description_snapshot`、項目範例圖片快照（`ORDER_ITEM_SNAPSHOT_IMAGE`）、`deposit_percent_snapshot`、`revision_count_snapshot`、`stage_plan_snapshot` | 甲方**送出委託申請時**（2026/10/15 定案，這些欄位都在這個時間點一起鎖；說明與圖片為 2026/10/17 新增，不是契約成立時，見 [data-model.md 4.1](data-model.md#41-order-契約快照欄位)） | 申請時就鎖定，申請後與契約成立後回應相同                                                                              |
 | 授權層級                                                                                            | 送出委託申請時                                                                                                                                       | 同上                                                                                                                  |
 | 報價金額、起訖日、各階段 `deadline`                                                                 | 乙方報價時填寫，甲方確認報價時鎖定                                                                                                                   | 報價前為空，確認後鎖定                                                                                                |
 | `creator_agreed_at`／`commissioner_agreed_at`                                                       | 乙方送出報價時／甲方在付款頁按「確認送出」時（2026/10/15 起，甲方不再記在送出申請時）                                                                | 申請後、報價後、付款前，`commissioner_agreed_at` 皆為空                                                               |
@@ -158,7 +158,7 @@
 
 | 動作                                                                                | 允許呼叫者                     |
 | ----------------------------------------------------------------------------------- | ------------------------------ |
-| `POST /orders`（送出申請）                                                          | 甲方                           |
+| `POST /orders`（送出申請）                                                          | 甲方（帳號被鎖時擋下）         |
 | `POST /orders/{id}/quote`（報價）                                                   | 乙方                           |
 | `POST /orders/{id}/confirm-quote`（確認報價）                                       | 甲方                           |
 | `POST /orders/{id}/stages/{stage_no}/submissions`（上傳稿件）                       | 乙方                           |
@@ -198,7 +198,7 @@
   1. **自動產生互動式 API 文件**（Swagger UI／ReDoc，直接從程式碼的型別標註與 Pydantic model 生成）。這正好解決這份 `api.md` 存在的問題——對規格時不用再手動一條條核對 request/response，FastAPI 生出來的文件就是即時、保證跟程式碼一致的規格，之後 api.md 可以只留「這支 API 做什麼、對應哪個畫面」，細節欄位直接看自動文件。
   2. 用 Python type hint 寫，概念上接近 TypeScript 的型別系統，對完全沒寫過後端但寫 TS 的人會比較好上手。
   3. 內建檔案上傳處理（`UploadFile`），正好對上 [5.2](#52-圖片上傳機制未定案) 已定案的「直傳後端」方案，不用額外找套件。
-  4. 比 Django 輕量，這個專案明確「沒有營運後台」（[prd.md](prd.md#mvp-範圍)），用不到 Django admin 這類開箱即用但這裡不需要的功能；搭配 **SQLModel**（FastAPI 作者寫的套件，整合 SQLAlchemy＋Pydantic）可以直接對應 ER 圖的 19 張表，schema 只要寫一次。
+  4. 比 Django 輕量，這個專案明確「沒有營運後台」（[prd.md](prd.md#mvp-範圍)），用不到 Django admin 這類開箱即用但這裡不需要的功能；搭配 **SQLModel**（FastAPI 作者寫的套件，整合 SQLAlchemy＋Pydantic）可以直接對應 ER 圖的 20 張表，schema 只要寫一次。
 - **還沒定案的部分**：錯誤格式、分頁、驗證方式，待跟淳對規格時一起定，暫定對齊 FastAPI 慣例：`HTTPException`＋統一的錯誤 response model、`page`＋`page_size` 查詢參數、`OAuth2PasswordBearer`＋JWT。
 - **影響範圍**：幾乎所有 list／寫入類 API 的格式，建議第一次對規格會議就先定這三件事，其他 endpoint 才能照同一套慣例寫。
 
@@ -228,9 +228,9 @@
 
 - **情境**：以下動作都是後端排程／cron 觸發，不是前端按按鈕（見 [order-lifecycle.md 二｜計時規則](order-lifecycle.md#二計時規則)），前端完全不呼叫 API 觸發，只被動收到通知後重新 `GET /orders/{id}`：
   - 付款期限 3 天到期未入帳 → 自動取消（E2E-07 子情境 D）
-  - 完稿 7 天窗口期滿（起算點為最近一次完稿上傳時間，每次重傳重算，提前交稿也從上傳當下起算）：一次付清 → 自動完成（E2E-09）；只付訂金 → 進入 7 天等待期，等待期滿仍未補齊 → 「最後階段未完成」結算（E2E-05）
+  - 完稿 7 天窗口期滿（起算點為最近一次完稿上傳時間，每次重傳重算，提前交稿也從上傳當下起算）：一次付清 → 自動完成（E2E-09）；只付訂金 → 進入 7 天等待期，等待期滿仍未補齊 → 依「完稿視同已確認」結算（E2E-05）
   - 乙方尚未上傳完稿、整筆委託最終截稿日 +30 天仍未了結 → 系統強制結算，只看委託人有沒有確認（E2E-06）
-  - 任何結算後委託人應補付未付 → 鎖帳號
+  - 任何結算後委託人應補付未付 → 鎖帳號（只擋 `POST /orders`，見 [order-lifecycle.md 三](order-lifecycle.md#結算後的鎖帳號與補付入口)）
 - **可調閾值**：把 3／7／30 天抽成設定值（環境變數或設定檔），正式環境用正常天數，測試／demo 環境調小（例如 3 天→30 秒、30 天→5 分鐘）。要注意「完稿窗口 7 天接著等待期 7 天」這種連續計時，調小後測試仍要等兩段。
 - **demo-only 手動觸發**：新增一組 debug 專用 API，風格對齊 [5.3](#53-模擬金流按鈕要不要獨立-api) 的 action 參數決定，不用再想獨立 endpoint 命名：
   `POST /orders/{id}/debug/actions`，body `{ "action": "expire_payment" | "expire_topup" | "expire_topup_grace" | "force_settle" }`，直接把指定 `ORDER` 推進到對應的逾期／結算後狀態（`expire_topup`＝完稿 7 天窗口期滿：一次付清自動完成、只付訂金進等待期；`expire_topup_grace`＝等待期滿結算）。只在非正式環境開放（例如用環境變數整組關掉這個 router），上線前拔掉或鎖權限。

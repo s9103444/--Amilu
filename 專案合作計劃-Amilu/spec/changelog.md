@@ -3,6 +3,11 @@
 > 規則改過什麼、什麼時候改的。新的在上面；同一天的多筆依當天發生順序排列。
 > 2026/10/7 以前的紀錄從 `討論紀錄/amilu_討論總結.md` 搬過來，內容未改寫，文中提到的「總結」「Part」「模組」指的是那份文件的章節。
 
+## 2026/10/17
+
+- 逐表核對 `data-model.md` 與 FigJam ER 圖，並同步修正兩邊：FigJam 端①`CREATOR_PROFILE.user_id` 補標 `UK`②`ORDER.payment_plan` 合法值改為「一次付清／先付訂金」③「關聯通知」線重接到 NOTIFICATION④補畫 `TAG.created_by_id`（建立標籤）、`ORDER.terminated_by_id`（終止發起）兩條線⑤新增 `ORDER.item_description_snapshot`、新表 `ORDER_ITEM_SNAPSHOT_IMAGE` 與「項目圖片快照」線，`ORDER.item_id` 說明標為 nullable⑥四張備註便利貼依 `data-model.md` 4.1～4.4 改寫（原內容停在快照於確認報價時鎖定、單段、auto-confirm 等舊規則）⑦ORDER 表變長，下方四張表與一張便利貼往下移避免重疊。`data-model.md` 端：關聯線 26→29 條並補兩條關係，第 6 節 #1～#3、#11 改為已解決，修掉 #6「尚未同步／已同步」自相矛盾的句子，新增 #12。
+- 用 grill-me 再對一輪 spec，定案四點：①**補款逾期改依「完稿視同已確認」結算**，刪除「最後階段未完成」結算：舊規則下只付訂金案件，創作者在完稿窗口內搶先終止可得總價全額（S10），等委託人逾期卻只得已確認階段（S6 的 8,250），委託人拖延反而少付；改成三條路徑結果一致，S6 改為創作者可得 10,000／應補付 7,000、補付後才能下載完稿，7 天等待期保留為鎖帳號前的寬限期②**「已取消」案件維持開放評價**，「申請後立即取消再給 1 星」的刷評價風險寫進 `features.md` 5.1，demo 不處理③**鎖帳號只擋送出新委託**（`POST /orders`），登入、瀏覽、補付入口、雙方身分的進行中案件照常，避免連累沒有欠款的另一方④**項目說明與範例圖片加進快照**（`ORDER.item_description_snapshot`、新表 `ORDER_ITEM_SNAPSHOT_IMAGE`），案件畫面一律讀快照，可委託項目改為真刪、`ORDER.item_id` 改為 nullable，`creator_id` 不再是冗餘 FK。同步 `order-lifecycle.md`、`data-model.md`（表數 19→20）、`features.md`、`api.md`、`acceptance.md`（E2E-05、S6、新增 ORD-24、第 5 節 #20～#23）。FigJam 待同步項目記在 `data-model.md` 第 6 節 #11。
+
 ## 2026/10/15
 
 - 新增 `acceptance.md`：依 `prd.md`、`features.md`、`order-lifecycle.md`、`data-model.md` 整理 8 條 E2E 主線情境（正常完成、中途終止、雙輸終止、只付訂金補款、補款逾期、逾期強制結算、契約成立前取消、Amilu 燈可見性）、各模組細部驗收條件、固定金額驗算表與反向驗收清單。對照各 spec 時發現 7 處規格有出入或未寫清楚，其中四點當天定案：①撥款只發生在訂金撥款、尾款撥款、終止結算三個時點，中間階段確認不撥款（`order-lifecycle.md` 付款方案同步修正「逐階段撥款」）②逾期強制結算時階段 1 有上傳視為已確認，先撥訂金，階段 2 起依終止結算金額處理③所有契約快照（`item_title_snapshot`、`deposit_percent_snapshot`、`revision_count_snapshot`、`stage_plan_snapshot`）統一在送出委託申請時鎖定（`data-model.md` 4.1 同步修正，原寫三者在確認報價時鎖）④已取消的案件雙方仍可互評。⑤補款期限定為 7 天（自創作者上傳最後階段起算），到期後另有 7 天等待期；`order-lifecycle.md` 計時表補上天數，`data-model.md` 問題清單第 4 點標記已解決。⑥終止結算的創作者可得定為「已確認階段金額總和」，第一階段就是訂金、不重複計算，`order-lifecycle.md` 表格文字由「訂金% ＋ 已確認階段費用」改正。測試用時間控制留待寫 `api.md` 時決定，列在 `acceptance.md` 第 5 節。同步 `README.md` 文件清單狀態改為 ✅。

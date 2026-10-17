@@ -40,14 +40,14 @@
 
 ---
 
-## 2. 有哪些表（共 19 張）
+## 2. 有哪些表（共 20 張）
 
 ### 2.1 帳號與身份
 
 | 表 | 中文 | PK | 重點 |
 | --- | --- | --- | --- |
 | `USER` | 使用者帳號 | `id` | 使用者自訂、全站唯一；`email` 是 UK 但不是主鍵；`account_status` 含正常／鎖定／封鎖／已刪除 |
-| `CREATOR_PROFILE` | 創作者接案設定 | `creator_id` | `user_id` 指向 USER，一個帳號最多一份；`store_approved` 判斷是否已開通 |
+| `CREATOR_PROFILE` | 創作者接案設定 | `creator_id` | `user_id` 指向 USER 且為 UK，一個帳號最多一份；`store_approved` 判斷是否已開通 |
 | `FOLLOW` | 追蹤關係 | `follower_id` ＋ `following_id` | USER 對 USER 的自我關聯，一組關係一列 |
 
 ### 2.2 作品與分類
@@ -72,6 +72,7 @@
 | `ORDER_STAGE` | 訂單分段紀錄 | `stage_id` | 一筆訂單 3 列（三點分段）或 5 列（五點分段） |
 | `ORDER_STAGE_IMAGE` | 階段稿件圖片 | `stage_id` ＋ `seq_no` | 弱實體；每階段最多 5 張，存浮水印預覽與正式稿兩個網址 |
 | `ORDER_REFERENCE_IMAGE` | 委託申請參考圖片 | `order_id` ＋ `seq_no` | 弱實體；只存申請時附的原始參考圖 |
+| `ORDER_ITEM_SNAPSHOT_IMAGE` | 項目範例圖片快照 | `order_id` ＋ `seq_no` | 弱實體；送出申請時從 `COMMISSION_ITEM_IMAGE` 複製（2026/10/17 新增） |
 | `PAYMENT` | 模擬金流／託管紀錄 | `payment_id` | 一筆訂單多筆：託管入款、撥款、退款、結算後補付入款（`type` 區分） |
 
 ### 2.4 溝通與通知
@@ -85,7 +86,7 @@
 
 ## 3. 表之間怎麼連
 
-下表依圖上的 26 條關聯線整理。「一方」永遠是第一個，「多方」是第二個。
+下表依圖上的 29 條關聯線整理。「一方」永遠是第一個，「多方」是第二個。
 
 ### 3.1 帳號與身份
 
@@ -111,6 +112,7 @@ FOLLOW 有兩條線都連到 USER，分別對應 `follower_id` 與 `following_id
 | 包含 | COMMISSION_ITEM | COMMISSION_ITEM_IMAGE | 1 對 0..N |
 | 掛標籤／被掛用 | WORK、TAG | WORK_TAG | 各 1 對 0..N |
 | 掛標籤／被掛用 | COMMISSION_ITEM、TAG | COMMISSION_ITEM_TAG | 各 1 對 0..N |
+| 建立標籤 | USER | TAG | 1 對 0..N，對應 `TAG.created_by_id`（只供稽核） |
 
 ### 3.3 訂單
 
@@ -123,8 +125,10 @@ FOLLOW 有兩條線都連到 USER，分別對應 `follower_id` 與 `following_id
 | 稿件圖片 | ORDER_STAGE | ORDER_STAGE_IMAGE | 1 對 0..N |
 | 金流紀錄 | ORDER | PAYMENT | 1 對 0..N |
 | 參考圖片 | ORDER | ORDER_REFERENCE_IMAGE | 1 對 0..N |
+| 項目圖片快照 | ORDER | ORDER_ITEM_SNAPSHOT_IMAGE | 1 對 0..N |
 | 留言 | ORDER | MESSAGE | 1 對 0..N |
-| 關聯通知 | ORDER | NOTIFICATION | 1 對 0..N（見第 6 節，線尾沒有接到表） |
+| 關聯通知 | ORDER | NOTIFICATION | 1 對 0..N |
+| 終止發起 | USER | ORDER | 1 對 0..N，對應 `ORDER.terminated_by_id`（可為空） |
 
 ### 3.4 溝通與通知
 
@@ -143,6 +147,8 @@ FigJam 上有四張標題為「備註」的便利貼，貼在對應的表旁邊�
 
 - `item_title_snapshot`、`deposit_percent_snapshot`、`revision_count_snapshot`、`stage_plan_snapshot` 都在**甲方送出委託申請時**就從可委託項目與接案設定複製一份存進 ORDER（2026/10/15 定案），避免乙方在報價前改了設定，讓甲方申請時看到的條件被改掉。
 - 原因：創作者之後修改或刪除可委託項目、調整接案設定時，已成立的案件仍要顯示並依照當下的內容，不會跟著變動。
+- **項目說明與範例圖片也要快照**（2026/10/17 定案）：`item_description_snapshot` 與 `ORDER_ITEM_SNAPSHOT_IMAGE` 同樣在送出申請時複製。案件畫面（申請頁帶入的項目資訊、討論牆「委託項目檢視」）一律讀快照，不讀即時的 `COMMISSION_ITEM`。
+- 因此可委託項目可以**真的刪除**，不用軟刪除；刪除後 `ORDER.item_id` 設為空值，所以 `item_id` 要改成 nullable。
 
 ### 4.2 ORDER_STAGE.stage_no 編碼
 
@@ -189,29 +195,32 @@ FigJam 上有四張標題為「備註」的便利貼，貼在對應的表旁邊�
 
 ### 5.3 其他
 
-- **弱實體與複合主鍵**：圖片類四張表用「父表 PK ＋ `seq_no`」當複合主鍵。`seq_no` 在同一個父表底下從 1 開始，刪除不遞補。
+- **弱實體與複合主鍵**：圖片類五張表用「父表 PK ＋ `seq_no`」當複合主鍵。`seq_no` 在同一個父表底下從 1 開始，刪除不遞補。
 - **標籤共用字典**：`TAG.name` 全站唯一。寫入前去除前後空白、英文不分大小寫比對；比對到既有標籤（含 CATEGORY、PURPOSE 的項目）就沿用，不新增。
 - **單選分類用直接 FK，不用中介表**：同一軸只能選一個，所以 WORK 與 COMMISSION_ITEM 直接放 `category_id`、`purpose_id`，且可為空。
 - **軟刪除**：刪除帳號只改 `USER.account_status` ＝ 已刪除並寫入 `deleted_at`，不刪列，歷史案件才不會指向不存在的帳號。
-- **保留一個冗餘 FK**：`ORDER.creator_id` 技術上可從 `item_id` 推得，為了查詢方便刻意保留。
+- **`ORDER.creator_id` 必須保留**：原本可從 `item_id` 推得、算是冗餘 FK；2026/10/17 起項目可真刪、`item_id` 可能為空，`creator_id` 成為判斷乙方的唯一依據。
 - **金額與狀態欄位的型別**：訂金比例、分段方案、各種狀態在圖上都標為 `string`，合法值見欄位說明；是否改用 enum 由後端決定。
 
 ---
 
 ## 6. 圖上目前已知的問題
 
-以下是比對圖與其他文件時發現的，**還沒有人決定怎麼處理**，實作前請先確認：
+以下是比對圖與其他文件時發現的問題與處理結果。2026/10/17 已逐表核對過 FigJam，目前**沒有未解決的項目**：
 
-1. **「關聯通知」那條線沒有接到 NOTIFICATION**：ORDER 到 NOTIFICATION 的連接線，終點掛在畫布上而不是 NOTIFICATION 這張表。`NOTIFICATION.order_id` 欄位本身是對的，只是線要重接。
-2. **有兩個 FK 沒有畫線**：`TAG.created_by_id` 指向 USER、`ORDER.terminated_by_id` 指向 USER，圖上都沒有對應的關聯線。
-3. **已解決**：惡意棄單機制已經拿掉（2026/10/12，見 `order-lifecycle.md`、changelog），改用統一的「最終截稿日 +30 天系統強制結算」，結算一律走「已終止」，不需要新增 `status` 值，原本的問題不存在了。但 FigJam 上 `USER.lock_reason` 的「惡意棄單」這個列舉值已經沒有對應情境，需要回頭去 FigJam 清掉。
+1. **已解決**（2026/10/17）：「關聯通知」那條線原本終點掛在畫布上，已重接到 NOTIFICATION。
+2. **已解決**（2026/10/17）：`TAG.created_by_id`、`ORDER.terminated_by_id` 原本沒有畫線，已補上「建立標籤」「終止發起」兩條關聯線。
+3. **已解決**：惡意棄單機制已經拿掉（2026/10/12，見 `order-lifecycle.md`、changelog），改用統一的「最終截稿日 +30 天系統強制結算」，結算一律走「已終止」，不需要新增 `status` 值，原本的問題不存在了。FigJam 上 `USER.lock_reason` 已改為「鎖定原因（結算後應補付未付）」，「惡意棄單」列舉值已清掉（2026/10/17 確認）。
 4. **已解決**（2026/10/15）：補款期限（一次付清則為完稿窗口）定為 7 天，起算點 ＝ 乙方最近一次上傳完稿的時間（提前交稿也從上傳當下起算，不等截稿日），每次重傳都重算；只付訂金案件到期後另有 7 天等待期，兩者是獨立的兩段。`ORDER.finalize_due_at`（原 `topup_due_at`）記的是這個期限的到期時間。
 5. **已解決**（2026/10/15）：`cancel_reason` 維持單一欄位，說明為「取消／終止合作原因」，不拆欄位；是取消還是終止，由 `status` 與 `terminated_by_id` 判斷。
 
-6. **已決定改名**（2026/10/15）：`topup_due_at` 一次付清的完稿窗口也用它，不再只是補款期限，改名為 `finalize_due_at`（完稿定稿／補款期限到期時間）。**FigJam 尚未同步**，FigJam 已於 2026/10/15 同步改名。
+6. **已決定改名**（2026/10/15）：`topup_due_at` 一次付清的完稿窗口也用它，不再只是補款期限，改名為 `finalize_due_at`（完稿定稿／補款期限到期時間）。FigJam 已於 2026/10/15 同步改名。
 7. **已解決**（2026/10/15）：結算後的補付入款不新增欄位，用既有的 `PAYMENT.type` 新增一個值「補付入款」（現有值：託管入款／訂金撥款／尾款撥款／退款）；`PAYMENT.status` 不新增狀態。
 8. **已解決**（2026/10/15）：完稿窗口期間可以申請終止合作，完稿視同已確認階段，創作者可得包含完稿費用。只付訂金案件在這個情境終止時，委託人要先補付「應補付」才能下載完稿圖，結算當下不能下載（2026/10/15 定案，與其他終止結算的稿件下載規則一致）。
 9. **已解決**（2026/10/15）：終態案件的聊天室唯讀，可看歷史訊息、不能再傳訊。
-10. **已同步**（2026/10/15，已由 Claude 直接改 FigJam 的欄位說明，欄位名稱 `finalize_due_at` 一併改好；便利貼 4.2、4.3 的備註內容未動，需人工對照）。同步項目如下：①`ORDER.topup_due_at` 改名 `finalize_due_at`，說明改為「完稿定稿／補款期限到期時間（乙方最近一次上傳完稿起算 7 天）」，原說明「最後階段確認前」已過時②`ORDER_STAGE.submitted_at` 說明「auto-confirm 與棄單判定起算」已過時（auto-confirm 與惡意棄單機制 10/12 已拿掉），改為「乙方最近一次上傳時間（重傳覆蓋）；完稿的上傳時間是 7 天期限起算點」③`COMMISSION_ITEM.stage_plan_pref`、`ORDER.stage_plan_snapshot` 的合法值「單段」改為「三點分段」④`ORDER_STAGE.stage_no` 說明「單段僅 5」改為「三點分段 1／4／5」⑤`PAYMENT.type` 新增「補付入款」⑥`ORDER.cancel_reason` 說明已是「取消／終止原因」，不用改⑦便利貼 4.2、4.3 對應本文 4.2、4.3 的更新。
+10. **已同步**（2026/10/15，已由 Claude 直接改 FigJam 的欄位說明，欄位名稱 `finalize_due_at` 一併改好；便利貼 4.1～4.4 的內容已於 2026/10/17 依本文 4.1～4.4 改寫同步）。同步項目如下：①`ORDER.topup_due_at` 改名 `finalize_due_at`，說明改為「完稿定稿／補款期限到期時間（乙方最近一次上傳完稿起算 7 天）」，原說明「最後階段確認前」已過時②`ORDER_STAGE.submitted_at` 說明「auto-confirm 與棄單判定起算」已過時（auto-confirm 與惡意棄單機制 10/12 已拿掉），改為「乙方最近一次上傳時間（重傳覆蓋）；完稿的上傳時間是 7 天期限起算點」③`COMMISSION_ITEM.stage_plan_pref`、`ORDER.stage_plan_snapshot` 的合法值「單段」改為「三點分段」④`ORDER_STAGE.stage_no` 說明「單段僅 5」改為「三點分段 1／4／5」⑤`PAYMENT.type` 新增「補付入款」⑥`ORDER.cancel_reason` 說明已是「取消／終止原因」，不用改⑦便利貼 4.2、4.3 對應本文 4.2、4.3 的更新。
+
+11. **已同步**（2026/10/17）：①`ORDER` 新增 `item_description_snapshot`（項目說明快照）②新增表 `ORDER_ITEM_SNAPSHOT_IMAGE`（`order_id`＋`seq_no`、圖片網址），並畫「項目圖片快照」關聯線③`ORDER.item_id` 改為 nullable，說明加「項目刪除後為空，案件一律讀快照」。
+12. **已同步**（2026/10/17）：`CREATOR_PROFILE.user_id` 補標 `UK`（對應 1 對 0..1）；`ORDER.payment_plan` 合法值由「全額／訂金」改為「一次付清／先付訂金」，與其他文件用詞一致。
 
 另外 `延伸檔案/ER模型-實體初步草案.md` 是較早的文字草案，若與 FigJam 不一致，以 FigJam 為準。
